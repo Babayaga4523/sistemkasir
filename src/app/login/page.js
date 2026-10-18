@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Coffee, Lock, Mail, ArrowRight, ShieldCheck, Database, Sparkles, AlertCircle, Store } from 'lucide-react';
+import { Coffee, Lock, Mail, ArrowRight, ShieldCheck, Sparkles, AlertCircle, Store } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import SupabaseModal from '../../components/SupabaseModal';
 import Toast from '../../components/Toast';
 
 export default function LoginPage() {
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const [cafeName, setCafeName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
   const addToast = (message, type = 'info') => {
@@ -328,36 +326,7 @@ export default function LoginPage() {
           <Store size={15} color="var(--accent-primary)" />
           <span>Masuk Cepat (Mode Offline / Demo)</span>
         </button>
-
-        {/* Supabase Connection Setup */}
-        <button
-          type="button"
-          onClick={() => setIsSupabaseModalOpen(true)}
-          style={{
-            width: '100%',
-            padding: '8px',
-            borderRadius: '8px',
-            background: 'transparent',
-            color: 'var(--text-faint)',
-            fontSize: '11px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px'
-          }}
-        >
-          <Database size={13} color="#34d399" />
-          <span>Atur URL & Anon Key Supabase</span>
-        </button>
       </div>
-
-      {/* Supabase Modal */}
-      <SupabaseModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-        onConfigUpdated={() => addToast('Konfigurasi Supabase berhasil diperbarui!', 'success')}
-        onShowToast={addToast}
-      />
 
       <Toast toasts={toasts} onDismiss={(id) => setToasts(t => t.filter(x => x.id !== id))} />
     </div>
