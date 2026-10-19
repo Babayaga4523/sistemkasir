@@ -126,7 +126,7 @@ export async function createStore(storeData, userId) {
   if (supabase && userId) {
     const { data, error } = await supabase
       .from('stores')
-      .insert(payload)
+      .upsert(payload, { onConflict: 'user_id' })
       .select()
       .single();
 

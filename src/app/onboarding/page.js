@@ -36,6 +36,12 @@ export default function OnboardingPage() {
     }
   }, [user, store, loading, router]);
 
+  useEffect(() => {
+    if (user?.user_metadata?.cafe_name && !name) {
+      setName(user.user_metadata.cafe_name);
+    }
+  }, [user, name]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {

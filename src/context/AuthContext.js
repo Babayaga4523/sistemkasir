@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { getStoreByUserId, createStore, updateStore, DEMO_STORE, initLocalData } from '../lib/dataService';
+import { formatAuthError, isValidEmail } from '../utils/authErrors';
 
 const AuthContext = createContext(null);
 
@@ -11,29 +12,78 @@ export function AuthProvider({ children }) {
   const [store, setStore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
-  // Load user session & store profile
+  // Bersihkan semua cache tenant lokal & token Supabase agar tidak ada data akun yang tertinggal
+  const clearLocalTenantCache = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Hapus key data tenant warkop
+    const keysToRemove = [
+      'warkop_demo_mode',
+      'warkop_store_profile',
+      'warkop_categories',
+      'warkop_categories_v2',
+      'warkop_products',
+      'warkop_products_v2',
+      'warkop_orders',
+      'warkop_orders_v2',
+      'warkop_pos_cart',
+      'warkop_active_order'
+    ];
+    keysToRemove.forEach(k => {
+      try {
+        localStorage.removeItem(k);
+      } catch (e) {
+        console.warn(`Gagal hapus ${k}:`, e);
+      }
+    });
+
+    // 2. Hapus semua token autentikasi Supabase dari localStorage agar getSession tidak re-login otomatis
+    try {
+      const storageKeys = Object.keys(localStorage);
+      for (const k of storageKeys) {
+        if (k.startsWith('sb-') || k.includes('-auth-token') || k.startsWith('supabase.')) {
+          localStorage.removeItem(k);
+        }
+      }
+      const sessionKeys = Object.keys(sessionStorage);
+      for (const k of sessionKeys) {
+        if (k.startsWith('sb-') || k.includes('-auth-token') || k.startsWith('supabase.')) {
+          sessionStorage.removeItem(k);
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal bersihkan token Supabase storage:', e);
+    }
+  }, []);
+
+  // Muat sesi autentikasi dan profil kafe yang terisolasi
   const refreshAuth = useCallback(async () => {
     setLoading(true);
-    initLocalData();
 
-    // Check if demo mode is active
+    // 1. Cek apakah pengguna memilih Mode Demo Offline secara eksplisit
     if (typeof window !== 'undefined' && localStorage.getItem('warkop_demo_mode') === 'true') {
+      initLocalData();
       const localStore = JSON.parse(localStorage.getItem('warkop_store_profile') || JSON.stringify(DEMO_STORE));
-      setUser({ id: 'demo-user-001', email: 'owner@warkopkita.demo', user_metadata: { name: 'Owner Warkop' } });
+      setUser({
+        id: 'demo-user-001',
+        email: 'owner@warkopkita.demo',
+        user_metadata: { name: 'Owner Warkop', cafe_name: localStore.name }
+      });
       setStore(localStore);
       setIsDemoMode(true);
       setLoading(false);
       return;
     }
 
+    // 2. Cek koneksi Supabase Cloud
     const supabase = getSupabase();
     if (!supabase) {
-      // Supabase not configured -> default to demo mode or prompt
-      const localStore = JSON.parse(localStorage.getItem('warkop_store_profile') || JSON.stringify(DEMO_STORE));
-      setUser({ id: 'demo-user-001', email: 'demo@warkopkita.id' });
-      setStore(localStore);
-      setIsDemoMode(true);
+      // Supabase belum terkonfigurasi dan user belum memilih demo mode
+      setUser(null);
+      setStore(null);
+      setIsDemoMode(false);
       setLoading(false);
       return;
     }
@@ -41,6 +91,15 @@ export function AuthProvider({ children }) {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
+      if (sessionError) {
+        console.warn('Sesi Supabase kadaluarsa atau error:', sessionError.message);
+        setUser(null);
+        setStore(null);
+        setIsDemoMode(false);
+        setLoading(false);
+        return;
+      }
+
       if (session?.user) {
         setUser(session.user);
         setIsDemoMode(false);
@@ -49,14 +108,18 @@ export function AuthProvider({ children }) {
       } else {
         setUser(null);
         setStore(null);
+        setIsDemoMode(false);
       }
     } catch (err) {
-      console.warn('Error fetching Supabase auth session:', err);
+      console.warn('Gagal membaca sesi Supabase:', err);
+      setUser(null);
+      setStore(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Pasang listener perubahan status autentikasi Supabase realtime
   useEffect(() => {
     refreshAuth();
 
@@ -64,14 +127,20 @@ export function AuthProvider({ children }) {
     if (!supabase) return;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
       if (session?.user) {
         setUser(session.user);
         setIsDemoMode(false);
         const storeData = await getStoreByUserId(session.user.id);
         setStore(storeData);
       } else if (event === 'SIGNED_OUT') {
+        clearLocalTenantCache();
         setUser(null);
         setStore(null);
+        setIsDemoMode(false);
+        setIsPasswordRecovery(false);
       }
       setLoading(false);
     });
@@ -79,86 +148,272 @@ export function AuthProvider({ children }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [refreshAuth]);
+  }, [refreshAuth, clearLocalTenantCache]);
 
-  const clearLocalTenantCache = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('warkop_demo_mode');
-      localStorage.removeItem('warkop_store_profile');
-      localStorage.removeItem('warkop_categories');
-      localStorage.removeItem('warkop_products');
-      localStorage.removeItem('warkop_orders');
-    }
-  };
-
-  // Sign In
+  // ==========================================
+  // SIGN IN LOGIC (LOGIN)
+  // ==========================================
   const signIn = async (email, password) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      throw new Error('Alamat email wajib diisi.');
+    }
+    if (!isValidEmail(cleanEmail)) {
+      throw new Error('Format alamat email tidak valid (contoh: kasir@warkop.id).');
+    }
+    if (!password) {
+      throw new Error('Kata sandi wajib diisi.');
+    }
+
     const supabase = getSupabase();
     if (!supabase) {
       throw new Error('Supabase belum terhubung. Konfigurasikan URL dan Anon Key terlebih dahulu.');
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: cleanEmail,
       password
     });
 
-    if (error) throw error;
-    clearLocalTenantCache();
-    setIsDemoMode(false);
-    await refreshAuth();
-    return data;
-  };
-
-  // Sign Up
-  const signUp = async (email, password) => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      throw new Error('Supabase belum terhubung. Konfigurasikan URL dan Anon Key terlebih dahulu.');
+    if (error) {
+      throw new Error(formatAuthError(error));
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password
-    });
-
-    if (error) throw error;
     clearLocalTenantCache();
     setIsDemoMode(false);
-    await refreshAuth();
+    setUser(data.user);
+
+    if (data.user?.id) {
+      const storeData = await getStoreByUserId(data.user.id);
+      setStore(storeData);
+    }
+
     return data;
   };
 
-  // Sign Out
+  // ==========================================
+  // SIGN UP LOGIC (REGISTER)
+  // ==========================================
+  const signUp = async (email, password, metadata = {}) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      throw new Error('Alamat email wajib diisi.');
+    }
+    if (!isValidEmail(cleanEmail)) {
+      throw new Error('Format alamat email tidak valid (contoh: kasir@warkop.id).');
+    }
+    if (!password || password.length < 6) {
+      throw new Error('Kata sandi minimal harus 6 karakter.');
+    }
+
+    // 1. Coba registrasi via Server API Route (Bypass rate limit email Supabase & auto-confirm)
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+          name: metadata.name || '',
+          cafeName: metadata.cafeName || ''
+        })
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(resData.error || 'Gagal mendaftar akun.');
+      }
+
+      // Akun berhasil dibuat dan aktif! Langsung login otomatis untuk mendapatkan sesi JWT
+      const loginData = await signIn(cleanEmail, password);
+
+      return {
+        user: loginData.user,
+        session: loginData.session,
+        needsEmailConfirmation: false
+      };
+    } catch (apiErr) {
+      // Jika error spesifik dari server (misal email sudah terdaftar), langsung teruskan ke user
+      const errLower = apiErr.message.toLowerCase();
+      if (errLower.includes('sudah terdaftar') || errLower.includes('minimal') || errLower.includes('format')) {
+        throw apiErr;
+      }
+
+      console.warn('Fallback ke client-side Supabase signUp:', apiErr.message);
+
+      // 2. Fallback ke client-side Supabase auth jika API server bermasalah
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase belum terhubung. Konfigurasikan URL dan Anon Key terlebih dahulu.');
+      }
+
+      const userMetadata = {
+        name: (metadata.name || cleanEmail.split('@')[0]).trim(),
+        cafe_name: (metadata.cafeName || '').trim(),
+        role: 'owner',
+        ...metadata
+      };
+
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: userMetadata
+        }
+      });
+
+      if (error) {
+        throw new Error(formatAuthError(error));
+      }
+
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        throw new Error('Alamat email ini sudah terdaftar. Silakan masuk menggunakan tab Masuk Kasir.');
+      }
+
+      clearLocalTenantCache();
+      setIsDemoMode(false);
+
+      const needsEmailConfirmation = !data.session;
+
+      if (data.session && data.user) {
+        setUser(data.user);
+        const storeData = await getStoreByUserId(data.user.id);
+        setStore(storeData);
+      }
+
+      return {
+        user: data.user,
+        session: data.session,
+        needsEmailConfirmation
+      };
+    }
+  };
+
+  // ==========================================
+  // PASSWORD RESET & RESEND VERIFICATION
+  // ==========================================
+  const resetPassword = async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+      throw new Error('Format alamat email tidak valid.');
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      throw new Error('Supabase belum terhubung.');
+    }
+
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo
+    });
+
+    if (error) {
+      throw new Error(formatAuthError(error));
+    }
+
+    return { success: true };
+  };
+
+  const resendConfirmationEmail = async (email) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+      throw new Error('Format alamat email tidak valid.');
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      throw new Error('Supabase belum terhubung.');
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail
+    });
+
+    if (error) {
+      throw new Error(formatAuthError(error));
+    }
+
+    return { success: true };
+  };
+
+  const updateUserPassword = async (newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Kata sandi baru minimal harus 6 karakter.');
+    }
+
+    if (isDemoMode) {
+      throw new Error('Mode demo offline tidak mendukung penggantian kata sandi cloud.');
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      throw new Error('Supabase belum terhubung.');
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      throw new Error(formatAuthError(error));
+    }
+
+    return data;
+  };
+
+  // ==========================================
+  // SIGN OUT (LOGOUT)
+  // ==========================================
   const signOut = async () => {
     const supabase = getSupabase();
-    clearLocalTenantCache();
-    setIsDemoMode(false);
+
+    // 1. Beritahu server Supabase untuk menghentikan sesi
     if (supabase) {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (e) {
+        console.warn('Catatan: supabase.auth.signOut local scope:', e);
+      }
       try {
         await supabase.auth.signOut();
       } catch (e) {
-        console.error(e);
+        console.warn('Catatan: supabase.auth.signOut global:', e);
       }
     }
+
+    // 2. Bersihkan seluruh token & cache tenant di browser
+    clearLocalTenantCache();
+    setIsDemoMode(false);
+    setIsPasswordRecovery(false);
     setUser(null);
     setStore(null);
   };
 
-  // Demo mode
+  // ==========================================
+  // DEMO MODE (OFFLINE TRIAL)
+  // ==========================================
   const activateDemoMode = () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('warkop_demo_mode', 'true');
     }
     initLocalData();
     const localStore = JSON.parse(localStorage.getItem('warkop_store_profile') || JSON.stringify(DEMO_STORE));
-    setUser({ id: 'demo-user-001', email: 'owner@warkopkita.demo' });
+    setUser({
+      id: 'demo-user-001',
+      email: 'owner@warkopkita.demo',
+      user_metadata: { name: 'Owner Warkop', cafe_name: localStore.name }
+    });
     setStore(localStore);
     setIsDemoMode(true);
     setLoading(false);
   };
 
-  // Create Store Profile (during Onboarding)
+  // ==========================================
+  // STORE PROFILE CREATION & UPDATE
+  // ==========================================
   const createStoreProfile = async (storeData) => {
     if (!user) throw new Error('User harus login untuk membuat profil kafe.');
     const newStore = await createStore(storeData, user.id);
@@ -166,7 +421,6 @@ export function AuthProvider({ children }) {
     return newStore;
   };
 
-  // Update Store Settings
   const updateStoreSettings = async (settings) => {
     if (!store?.id) throw new Error('Store tidak ditemukan.');
     const updated = await updateStore(store.id, settings);
@@ -180,9 +434,14 @@ export function AuthProvider({ children }) {
       store,
       loading,
       isDemoMode,
+      isPasswordRecovery,
+      setIsPasswordRecovery,
       signIn,
       signUp,
       signOut,
+      resetPassword,
+      resendConfirmationEmail,
+      updateUserPassword,
       activateDemoMode,
       refreshAuth,
       createStoreProfile,

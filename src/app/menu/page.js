@@ -166,10 +166,14 @@ export default function MenuPage() {
 
   // Auth Guard
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+      } else if (!store) {
+        router.push('/onboarding');
+      }
     }
-  }, [user, authLoading, router]);
+  }, [user, store, authLoading, router]);
 
   // Load Data for Store
   const loadData = useCallback(async () => {

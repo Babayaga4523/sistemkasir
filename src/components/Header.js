@@ -31,6 +31,8 @@ export default function Header({
 }) {
   const [mounted, setMounted] = useState(false);
   const [internalTutorialOpen, setInternalTutorialOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
   const pathname = usePathname();
@@ -67,10 +69,20 @@ export default function Header({
     }
   };
 
-  const handleLogout = async () => {
-    if (window.confirm('Apakah Anda yakin ingin keluar dari sistem kasir?')) {
+  const handleOpenLogout = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    try {
       await signOut();
-      router.push('/login');
+    } catch (err) {
+      console.warn('Logout error:', err);
+    } finally {
+      window.location.href = '/login';
     }
   };
 
@@ -322,25 +334,119 @@ export default function Header({
 
 
         {/* Logout Button */}
-        {mounted && user && (
+        {mounted && (
           <button
-            onClick={handleLogout}
-            title="Keluar / Logout"
+            type="button"
+            onClick={handleOpenLogout}
+            title="Keluar / Logout Akun"
             style={{
-              padding: '6px 8px',
+              padding: '6px 10px',
               borderRadius: '9px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
               color: 'var(--accent-rose)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              gap: '6px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 700,
+              transition: 'all 0.15s ease'
             }}
           >
             <LogOut size={14} />
+            <span>Keluar</span>
           </button>
         )}
       </div>
+
+      {/* Modal Konfirmasi Logout In-App (Bebas dari blokir popup browser) */}
+      {isLogoutModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px'
+        }}>
+          <div className="animate-scale-up" style={{
+            background: 'var(--bg-surface, #1e1b18)',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+            borderRadius: '20px',
+            padding: '24px 28px',
+            maxWidth: '380px',
+            width: '100%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: 'var(--accent-rose, #ef4444)'
+            }}>
+              <LogOut size={24} />
+            </div>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>
+              Keluar dari Sistem Kasir?
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted, #a1a1aa)', marginBottom: '22px', lineHeight: 1.5 }}>
+              Sesi kasir kafe Anda akan ditutup. Anda harus login kembali untuk membuka transaksi kasir.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                disabled={loggingOut}
+                style={{
+                  padding: '11px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                disabled={loggingOut}
+                style={{
+                  padding: '11px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: loggingOut ? 'wait' : 'pointer',
+                  opacity: loggingOut ? 0.7 : 1,
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+                  border: 'none'
+                }}
+              >
+                {loggingOut ? 'Keluar...' : 'Ya, Keluar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <TutorialModal
         isOpen={internalTutorialOpen}

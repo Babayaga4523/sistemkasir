@@ -37,17 +37,26 @@ import {
   RefreshCw,
   Printer,
   Layers,
-  Bluetooth
+  Bluetooth,
+  Eye,
+  EyeOff,
+  LogOut,
+  KeyRound,
+  User
 } from 'lucide-react';
 import { printThermalIframe, getPrinterSettings, savePrinterSettings } from '../../utils/printer';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, store, loading, updateStoreSettings, signOut } = useAuth();
+  const { user, store, loading, updateStoreSettings, signOut, updateUserPassword, isDemoMode } = useAuth();
 
   // Form states
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [receiptFooter, setReceiptFooter] = useState('');
@@ -111,10 +120,14 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    if (!loading) {
+      if (!user) {
+        router.push('/login');
+      } else if (!store) {
+        router.push('/onboarding');
+      }
     }
-  }, [user, loading, router]);
+  }, [user, store, loading, router]);
 
   useEffect(() => {
     if (store) {
@@ -281,6 +294,41 @@ export default function SettingsPage() {
       addToast('Gagal mencetak struk: ' + (err.message || 'Error'), 'error');
     } finally {
       setTestingPrint(false);
+    }
+  };
+
+  // Ubah kata sandi pengguna
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      addToast('Kata sandi baru minimal 6 karakter.', 'warning');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      addToast('Konfirmasi kata sandi baru tidak cocok.', 'warning');
+      return;
+    }
+
+    setUpdatingPassword(true);
+    try {
+      await updateUserPassword(newPassword);
+      addToast('Kata sandi akun kasir berhasil diperbarui!', 'success');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err) {
+      addToast(err.message || 'Gagal memperbarui kata sandi.', 'error');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  const handleAccountLogout = async () => {
+    try {
+      await signOut();
+    } catch (err) {
+      console.warn('Logout error:', err);
+    } finally {
+      window.location.href = '/login';
     }
   };
 
@@ -1448,6 +1496,185 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Card: Akun Pengguna & Keamanan Sandi */}
+          <div style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
+            padding: '22px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <KeyRound size={17} color="var(--accent-primary)" />
+                <span>Akun Pengguna & Keamanan Sandi</span>
+              </h2>
+
+              <button
+                type="button"
+                onClick={handleAccountLogout}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <LogOut size={13} />
+                <span>Keluar dari Akun Kasir</span>
+              </button>
+            </div>
+
+            {/* Account Info Details */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Email Akun Aktif</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{user?.email || 'Mode Demo / Offline'}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Tipe Sesi Kasir</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  background: isDemoMode ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                  color: isDemoMode ? 'var(--accent-primary)' : '#34d399'
+                }}>
+                  {isDemoMode ? 'Offline / Demo Mode' : 'Supabase Cloud Terautentikasi'}
+                </span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Tenant Store ID</span>
+                <code style={{ fontSize: '12px', color: 'var(--accent-primary)' }}>{store?.id || 'demo-store-001'}</code>
+              </div>
+            </div>
+
+            {/* Change Password Sub-form (Cloud User Only) */}
+            {!isDemoMode && (
+              <div style={{
+                borderTop: '1px dashed var(--border-subtle)',
+                paddingTop: '14px'
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '10px' }}>
+                  Ganti Kata Sandi Akun
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Kata Sandi Baru (Min 6 Karakter)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        placeholder="Minimal 6 karakter"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 34px 9px 32px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border-subtle)',
+                          color: '#fff',
+                          fontSize: '12px'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '2px',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Konfirmasi Kata Sandi Baru
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        placeholder="Ulangi sandi baru"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px 9px 32px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border-subtle)',
+                          color: '#fff',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleUpdatePassword}
+                      disabled={updatingPassword || !newPassword}
+                      style={{
+                        width: '100%',
+                        padding: '9px 14px',
+                        borderRadius: '8px',
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        color: 'var(--accent-primary)',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: (!newPassword || updatingPassword) ? 'not-allowed' : 'pointer',
+                        opacity: (!newPassword || updatingPassword) ? 0.6 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Save size={14} />
+                      <span>{updatingPassword ? 'Menyimpan...' : 'Perbarui Kata Sandi'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 5: Multi-Tenant Isolation Status */}

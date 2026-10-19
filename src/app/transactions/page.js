@@ -34,10 +34,14 @@ export default function TransactionsPage() {
 
   // Auth Guard
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+      } else if (!store) {
+        router.push('/onboarding');
+      }
     }
-  }, [user, authLoading, router]);
+  }, [user, store, authLoading, router]);
 
   // Load orders for this store
   const loadOrders = useCallback(async () => {
