@@ -1,5 +1,5 @@
 import { getSupabase } from './supabase';
-import { DEFAULT_CATEGORIES, DEFAULT_PRODUCTS, INITIAL_SAMPLE_ORDERS } from './defaultData';
+import { DEFAULT_CATEGORIES, DEFAULT_PRODUCTS, INITIAL_SAMPLE_ORDERS, DEFAULT_DISCOUNTS } from './defaultData';
 
 const DEMO_STORE_ID = 'demo-store-001';
 
@@ -16,7 +16,8 @@ export const DEMO_STORE = {
   tax_enabled: false,
   service_charge_percentage: 5,
   service_charge_enabled: false,
-  payment_methods: { cash: true, qris: true, transfer: true }
+  payment_methods: { cash: true, qris: true, transfer: true },
+  discounts: DEFAULT_DISCOUNTS
 };
 
 const STORAGE_KEYS = {
@@ -76,7 +77,8 @@ export async function getStoreByUserId(userId) {
           table_count: data.table_count || data.payment_methods?.table_count || 15,
           instagram_handle: data.instagram_handle || data.payment_methods?.instagram_handle || '',
           takeaway_fee_enabled: data.takeaway_fee_enabled !== undefined ? data.takeaway_fee_enabled : data.payment_methods?.takeaway_fee_enabled,
-          takeaway_fee: data.takeaway_fee !== undefined ? data.takeaway_fee : (data.payment_methods?.takeaway_fee || 1000)
+          takeaway_fee: data.takeaway_fee !== undefined ? data.takeaway_fee : (data.payment_methods?.takeaway_fee || 1000),
+          discounts: data.discounts || data.payment_methods?.discounts || DEFAULT_DISCOUNTS
         };
       }
     } catch (err) {
@@ -195,75 +197,126 @@ export async function updateStore(storeId, updateData) {
     updated_at: new Date().toISOString()
   };
 
+  const paymentMethodsPayload = {
+    ...(typeof payload.payment_methods === 'object' ? payload.payment_methods : {}),
+    qris_payload: payload.qris_payload || '',
+    qris_dynamic_enabled: payload.qris_dynamic_enabled !== false,
+    bank_name: payload.bank_name || '',
+    bank_account_number: payload.bank_account_number || '',
+    bank_account_name: payload.bank_account_name || '',
+    wifi_ssid: payload.wifi_ssid || '',
+    wifi_password: payload.wifi_password || '',
+    opening_hours: payload.opening_hours || '',
+    table_count: Number(payload.table_count) || 15,
+    instagram_handle: payload.instagram_handle || '',
+    takeaway_fee_enabled: Boolean(payload.takeaway_fee_enabled),
+    takeaway_fee: Number(payload.takeaway_fee) || 0,
+    discounts: Array.isArray(payload.discounts) ? payload.discounts : []
+  };
+
   let savedData = null;
 
-  if (supabase && storeId && !storeId.startsWith('demo-')) {
-    const paymentMethodsPayload = {
-      ...(typeof payload.payment_methods === 'object' ? payload.payment_methods : {}),
-      qris_payload: payload.qris_payload || '',
-      qris_dynamic_enabled: payload.qris_dynamic_enabled !== false,
-      bank_name: payload.bank_name || '',
-      bank_account_number: payload.bank_account_number || '',
-      bank_account_name: payload.bank_account_name || '',
-      wifi_ssid: payload.wifi_ssid || '',
-      wifi_password: payload.wifi_password || '',
-      opening_hours: payload.opening_hours || '',
-      table_count: payload.table_count || 15,
-      instagram_handle: payload.instagram_handle || '',
-      takeaway_fee_enabled: Boolean(payload.takeaway_fee_enabled),
-      takeaway_fee: Number(payload.takeaway_fee) || 0
+  // 1. Coba update via Server API Route (memakai Supabase Service Role - aman dari RLS & 400 Bad Request)
+  if (typeof window !== 'undefined' && storeId && !storeId.startsWith('demo-')) {
+    try {
+      const res = await fetch('/api/store/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, updateData: { ...payload, payment_methods: paymentMethodsPayload } })
+      });
+      if (res.ok) {
+        const resJson = await res.json();
+        if (resJson?.store) {
+          savedData = resJson.store;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('API route /api/store/update gagal, beralih ke client Supabase:', apiErr);
+    }
+  }
+
+  // 2. Fallback Direct Supabase Update dengan Sanitasi Kolom Ketat (Hanya kolom resmi skema stores)
+  if (!savedData && supabase && storeId && !storeId.startsWith('demo-')) {
+    const corePayload = {
+      name: (payload.name || '').trim(),
+      address: (payload.address || '').trim(),
+      phone: (payload.phone || '').trim(),
+      currency: payload.currency || 'IDR',
+      logo_url: payload.logo_url || '',
+      receipt_footer: (payload.receipt_footer || '').trim(),
+      tax_percentage: Number(payload.tax_percentage) || 0,
+      tax_enabled: Boolean(payload.tax_enabled),
+      service_charge_percentage: Number(payload.service_charge_percentage) || 0,
+      service_charge_enabled: Boolean(payload.service_charge_enabled),
+      payment_methods: paymentMethodsPayload,
+      updated_at: payload.updated_at
     };
 
-    // 1. Try full update to Supabase
-    const { data, error } = await supabase
-      .from('stores')
-      .update({
-        ...payload,
-        payment_methods: paymentMethodsPayload
-      })
-      .eq('id', storeId)
-      .select()
-      .single();
-
-    if (!error && data) {
-      savedData = { ...data, ...payload };
-    } else if (error) {
-      console.warn('Full store update failed, retrying with core columns:', error.message);
-      // Fallback: update only core schema columns in Supabase with embedded payment_methods JSONB
-      const corePayload = {
-        name: payload.name,
-        address: payload.address,
-        phone: payload.phone,
-        currency: payload.currency || 'IDR',
-        logo_url: payload.logo_url,
-        receipt_footer: payload.receipt_footer,
-        tax_percentage: payload.tax_percentage,
-        tax_enabled: payload.tax_enabled,
-        service_charge_percentage: payload.service_charge_percentage,
-        service_charge_enabled: payload.service_charge_enabled,
-        payment_methods: paymentMethodsPayload,
-        updated_at: payload.updated_at
-      };
-      const { data: fallbackData } = await supabase
+    try {
+      const { data, error } = await supabase
         .from('stores')
         .update(corePayload)
         .eq('id', storeId)
         .select()
         .single();
-      savedData = fallbackData ? { ...fallbackData, ...payload } : payload;
+
+      if (!error && data) {
+        savedData = {
+          ...data,
+          ...payload,
+          payment_methods: paymentMethodsPayload,
+          qris_payload: paymentMethodsPayload.qris_payload,
+          qris_dynamic_enabled: paymentMethodsPayload.qris_dynamic_enabled,
+          bank_name: paymentMethodsPayload.bank_name,
+          bank_account_number: paymentMethodsPayload.bank_account_number,
+          bank_account_name: paymentMethodsPayload.bank_account_name,
+          wifi_ssid: paymentMethodsPayload.wifi_ssid,
+          wifi_password: paymentMethodsPayload.wifi_password,
+          opening_hours: paymentMethodsPayload.opening_hours,
+          table_count: paymentMethodsPayload.table_count,
+          instagram_handle: paymentMethodsPayload.instagram_handle,
+          takeaway_fee_enabled: paymentMethodsPayload.takeaway_fee_enabled,
+          takeaway_fee: paymentMethodsPayload.takeaway_fee,
+          discounts: paymentMethodsPayload.discounts
+        };
+      } else if (error) {
+        console.warn('Direct Supabase store update error:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase updateStore error:', err);
     }
   }
+
+  const finalMerged = {
+    ...(savedData || payload),
+    payment_methods: paymentMethodsPayload,
+    qris_payload: paymentMethodsPayload.qris_payload,
+    qris_dynamic_enabled: paymentMethodsPayload.qris_dynamic_enabled,
+    bank_name: paymentMethodsPayload.bank_name,
+    bank_account_number: paymentMethodsPayload.bank_account_number,
+    bank_account_name: paymentMethodsPayload.bank_account_name,
+    wifi_ssid: paymentMethodsPayload.wifi_ssid,
+    wifi_password: paymentMethodsPayload.wifi_password,
+    opening_hours: paymentMethodsPayload.opening_hours,
+    table_count: paymentMethodsPayload.table_count,
+    instagram_handle: paymentMethodsPayload.instagram_handle,
+    takeaway_fee_enabled: paymentMethodsPayload.takeaway_fee_enabled,
+    takeaway_fee: paymentMethodsPayload.takeaway_fee,
+    discounts: paymentMethodsPayload.discounts,
+    id: storeId,
+    updated_at: payload.updated_at
+  };
 
   // Always sync to local storage with strict store ID check
   if (typeof window !== 'undefined') {
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.STORE) || '{}');
     const isSameStore = !existing.id || existing.id === storeId;
-    const finalMerged = { ...(isSameStore ? existing : {}), ...(savedData || {}), ...payload, id: storeId };
-    localStorage.setItem(STORAGE_KEYS.STORE, JSON.stringify(finalMerged));
-    return finalMerged;
+    const finalStored = { ...(isSameStore ? existing : {}), ...finalMerged };
+    localStorage.setItem(STORAGE_KEYS.STORE, JSON.stringify(finalStored));
+    return finalStored;
   }
 
-  return savedData || payload;
+  return finalMerged;
 }
 
 // ==========================================

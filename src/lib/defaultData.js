@@ -472,3 +472,10 @@ export const STORE_INFO = {
   taxRate: 0, // PB1 / pajak warkop default 0% (bisa diaktifkan 10%)
   currency: 'IDR'
 };
+
+export const DEFAULT_DISCOUNTS = [
+  { id: 'disc-member', name: 'Member Setia (10%)', type: 'percentage', value: 10, min_order: 0, is_active: true },
+  { id: 'disc-jumat', name: 'Jumat Berkah (Rp 5.000)', type: 'fixed', value: 5000, min_order: 25000, is_active: true },
+  { id: 'disc-karyawan', name: 'Diskon Karyawan (20%)', type: 'percentage', value: 20, min_order: 0, is_active: true },
+  { id: 'disc-promo-10k', name: 'Voucher Promo Rp 10.000', type: 'fixed', value: 10000, min_order: 50000, is_active: false }
+];

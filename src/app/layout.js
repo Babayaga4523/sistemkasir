@@ -17,6 +17,15 @@ export const metadata = {
   description: "Sistem kasir modern khusus warkop dan cafe dengan Next.js dan Supabase. Fitur lengkap: multi-tenant, kasir cepat, KDS dapur, struk thermal, laporan penjualan.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: "#0c0a09",
+  viewportFit: "cover"
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="id" className={`${geistSans.variable} ${geistMono.variable}`}>

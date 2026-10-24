@@ -14,7 +14,9 @@ import {
   ArrowRight,
   BookOpen,
   Sliders,
-  Store
+  Store,
+  ShoppingBag,
+  Receipt
 } from 'lucide-react';
 import ProductCard from './ProductCard';
 import CartSidebar from './CartSidebar';
@@ -50,11 +52,16 @@ export default function POSScreen({
   loadingSeed = false,
   storeName = '',
   openBillsCount = 0,
-  onOpenActiveBills
+  onOpenActiveBills,
+  discounts = []
 }) {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
+  const totalCartItems = cart.reduce((sum, it) => sum + it.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, it) => sum + (it.subtotal || it.price * it.quantity), 0);
 
   // Filtering products
   const filteredProducts = products.filter(product => {
@@ -81,6 +88,26 @@ export default function POSScreen({
       width: '100%',
       overflow: 'hidden'
     }}>
+      <style>{`
+        .pos-catalog-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+          gap: 10px;
+          align-content: start;
+        }
+        @media (max-width: 640px) {
+          .pos-catalog-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+            padding: 10px 10px calc(var(--mobile-nav-height) + var(--safe-bottom) + 85px) 10px !important;
+          }
+        }
+        @media (max-width: 340px) {
+          .pos-catalog-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
       {/* Left / Center: Catalog Section */}
       <div style={{
         flex: 1,
@@ -92,24 +119,26 @@ export default function POSScreen({
       }}>
         {/* Top Control Bar: Search & Quick Stat */}
         <div style={{
-          padding: '12px 20px',
+          padding: '10px 14px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '16px',
+          gap: '10px',
+          flexWrap: 'wrap',
           background: 'rgba(23, 20, 18, 0.5)'
         }}>
           {/* Search Box */}
           <div style={{
             position: 'relative',
             flex: 1,
+            minWidth: '180px',
             maxWidth: '480px'
           }}>
             <Search 
-              size={17} 
+              size={16} 
               color="var(--text-muted)" 
-              style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} 
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} 
             />
             <input
               type="text"
@@ -118,7 +147,7 @@ export default function POSScreen({
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '10px 38px 10px 42px',
+                padding: '9px 34px 9px 38px',
                 borderRadius: '12px',
                 background: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid var(--border-subtle)',
@@ -132,7 +161,7 @@ export default function POSScreen({
                 onClick={() => setSearchQuery('')}
                 style={{
                   position: 'absolute',
-                  right: '12px',
+                  right: '10px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   background: 'transparent',
@@ -146,14 +175,41 @@ export default function POSScreen({
             )}
           </div>
 
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Menampilkan <strong style={{ color: '#fff' }}>{filteredProducts.length}</strong> menu
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Mobile Open Bills shortcut */}
+            {openBillsCount > 0 && onOpenActiveBills && (
+              <button
+                type="button"
+                onClick={onOpenActiveBills}
+                title="Buka daftar tagihan meja / open bill yang belum lunas"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '7px 11px',
+                  borderRadius: '10px',
+                  background: 'rgba(245, 158, 11, 0.16)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  color: 'var(--accent-primary)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Receipt size={13} />
+                <span>Tagihan ({openBillsCount})</span>
+              </button>
+            )}
+
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              <strong style={{ color: '#fff' }}>{filteredProducts.length}</strong> menu
+            </div>
           </div>
         </div>
 
         {/* Category Horizontal Filter Pills */}
-        <div style={{
-          padding: '10px 20px',
+        <div className="touch-scroll-x" style={{
+          padding: '8px 12px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           gap: '8px',
@@ -164,7 +220,7 @@ export default function POSScreen({
             type="button"
             onClick={() => setSelectedCategory('all')}
             style={{
-              padding: '8px 16px',
+              padding: '7px 14px',
               borderRadius: '999px',
               fontSize: '12px',
               fontWeight: selectedCategory === 'all' ? 700 : 500,
@@ -177,7 +233,7 @@ export default function POSScreen({
               boxShadow: selectedCategory === 'all' ? '0 2px 10px rgba(245, 158, 11, 0.3)' : 'none'
             }}
           >
-            Semua Menu ({products.length})
+            Semua ({products.length})
           </button>
 
           {categories.map(cat => {
@@ -191,7 +247,7 @@ export default function POSScreen({
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
                 style={{
-                  padding: '8px 16px',
+                  padding: '7px 14px',
                   borderRadius: '999px',
                   fontSize: '12px',
                   fontWeight: isSelected ? 700 : 500,
@@ -203,11 +259,11 @@ export default function POSScreen({
                   whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '5px',
                   boxShadow: isSelected ? '0 2px 10px rgba(245, 158, 11, 0.3)' : 'none'
                 }}
               >
-                <Icon size={14} color={isSelected ? '#000' : 'var(--accent-primary)'} />
+                <Icon size={13} color={isSelected ? '#000' : 'var(--accent-primary)'} />
                 <span>{cat.name} ({count})</span>
               </button>
             );
@@ -215,16 +271,15 @@ export default function POSScreen({
         </div>
 
         {/* Product Cards Grid */}
-        <div style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          padding: '16px 20px 48px 20px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-          gap: '12px',
-          alignContent: 'start'
-        }}>
+        <div 
+          className="pos-catalog-grid"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            padding: '12px 12px 90px 12px'
+          }}
+        >
           {products.length === 0 ? (
             /* Getting Started / Tutorial Guide for New Store */
             <div style={{
@@ -479,32 +534,162 @@ export default function POSScreen({
         </div>
       </div>
 
-      {/* Right: Sticky Cart Sidebar */}
-      <CartSidebar
-        cart={cart}
-        customerName={customerName}
-        setCustomerName={setCustomerName}
-        tableNumber={tableNumber}
-        setTableNumber={setTableNumber}
-        orderType={orderType}
-        setOrderType={setOrderType}
-        discount={discount}
-        setDiscount={setDiscount}
-        taxEnabled={taxEnabled}
-        setTaxEnabled={setTaxEnabled}
-        taxPercentage={taxPercentage}
-        serviceChargeEnabled={serviceChargeEnabled}
-        setServiceChargeEnabled={setServiceChargeEnabled}
-        serviceChargePercentage={serviceChargePercentage}
-        onUpdateQuantity={onUpdateQuantity}
-        onRemoveItem={onRemoveItem}
-        onUpdateItemNotes={onUpdateItemNotes}
-        onClearCart={onClearCart}
-        onOpenPayment={onOpenPayment}
-        onSendToKitchenDirect={onSendToKitchenDirect}
-        openBillsCount={openBillsCount}
-        onOpenActiveBills={onOpenActiveBills}
-      />
+      {/* Right: Sticky Cart Sidebar (Desktop only) */}
+      <div className="hide-on-tablet" style={{ height: '100%' }}>
+        <CartSidebar
+          cart={cart}
+          customerName={customerName}
+          setCustomerName={setCustomerName}
+          tableNumber={tableNumber}
+          setTableNumber={setTableNumber}
+          orderType={orderType}
+          setOrderType={setOrderType}
+          discount={discount}
+          setDiscount={setDiscount}
+          taxEnabled={taxEnabled}
+          setTaxEnabled={setTaxEnabled}
+          taxPercentage={taxPercentage}
+          serviceChargeEnabled={serviceChargeEnabled}
+          setServiceChargeEnabled={setServiceChargeEnabled}
+          serviceChargePercentage={serviceChargePercentage}
+          onUpdateQuantity={onUpdateQuantity}
+          onRemoveItem={onRemoveItem}
+          onUpdateItemNotes={onUpdateItemNotes}
+          onClearCart={onClearCart}
+          onOpenPayment={onOpenPayment}
+          onSendToKitchenDirect={onSendToKitchenDirect}
+          openBillsCount={openBillsCount}
+          onOpenActiveBills={onOpenActiveBills}
+          discounts={discounts}
+        />
+      </div>
+
+      {/* Floating Mobile / Tablet Cart Trigger Bar */}
+      {cart.length > 0 && (
+        <div 
+          className="show-on-tablet" 
+          style={{
+            display: 'none',
+            position: 'fixed',
+            bottom: 'calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 8px)',
+            left: '12px',
+            right: '12px',
+            zIndex: 60
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setIsMobileCartOpen(true)}
+            style={{
+              width: '100%',
+              padding: '12px 18px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%)',
+              color: '#000',
+              boxShadow: '0 8px 25px rgba(245, 158, 11, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontWeight: 800,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                background: 'rgba(0, 0, 0, 0.15)',
+                padding: '4px 8px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}>
+                <ShoppingBag size={16} color="#000" />
+                <span>{totalCartItems} Item</span>
+              </div>
+              <span>•</span>
+              <span style={{ fontSize: '14px', fontWeight: 800 }}>Rp {cartSubtotal.toLocaleString('id-ID')}</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700 }}>
+              <span>Lihat Pesanan</span>
+              <ArrowRight size={15} />
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Cart Drawer Overlay */}
+      {isMobileCartOpen && (
+        <div 
+          className="show-on-tablet"
+          style={{
+            display: 'none',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(10px)',
+            flexDirection: 'column',
+            justifyContent: 'flex-end'
+          }}
+        >
+          <div 
+            className="animate-slide-up-sheet"
+            style={{
+              width: '100%',
+              maxHeight: '90vh',
+              height: '90vh',
+              background: 'var(--bg-sidebar)',
+              borderRadius: '24px 24px 0 0',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)'
+            }}
+          >
+            <div className="bottom-sheet-drag-handle" />
+            <CartSidebar
+              cart={cart}
+              customerName={customerName}
+              setCustomerName={setCustomerName}
+              tableNumber={tableNumber}
+              setTableNumber={setTableNumber}
+              orderType={orderType}
+              setOrderType={setOrderType}
+              discount={discount}
+              setDiscount={setDiscount}
+              taxEnabled={taxEnabled}
+              setTaxEnabled={setTaxEnabled}
+              taxPercentage={taxPercentage}
+              serviceChargeEnabled={serviceChargeEnabled}
+              setServiceChargeEnabled={setServiceChargeEnabled}
+              serviceChargePercentage={serviceChargePercentage}
+              onUpdateQuantity={onUpdateQuantity}
+              onRemoveItem={onRemoveItem}
+              onUpdateItemNotes={onUpdateItemNotes}
+              onClearCart={onClearCart}
+              onOpenPayment={() => {
+                setIsMobileCartOpen(false);
+                onOpenPayment();
+              }}
+              onSendToKitchenDirect={() => {
+                setIsMobileCartOpen(false);
+                onSendToKitchenDirect();
+              }}
+              openBillsCount={openBillsCount}
+              onOpenActiveBills={() => {
+                setIsMobileCartOpen(false);
+                if (onOpenActiveBills) onOpenActiveBills();
+              }}
+              discounts={discounts}
+              isMobileDrawer={true}
+              onCloseMobileDrawer={() => setIsMobileCartOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

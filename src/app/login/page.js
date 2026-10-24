@@ -312,14 +312,25 @@ export default function LoginPage() {
         pointerEvents: 'none'
       }} />
 
-      <div className="animate-scale-up" style={{
+      <style>{`
+        .login-card {
+          padding: 32px 28px;
+        }
+        @media (max-width: 480px) {
+          .login-card {
+            padding: 24px 18px !important;
+            border-radius: 18px !important;
+          }
+        }
+      `}</style>
+
+      <div className="animate-scale-up login-card" style={{
         width: '100%',
         maxWidth: tab === 'register' ? '480px' : '440px',
         background: 'rgba(23, 20, 18, 0.88)',
         backdropFilter: 'blur(20px)',
         border: '1px solid var(--border-subtle)',
         borderRadius: '24px',
-        padding: '32px 28px',
         boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85)',
         zIndex: 10,
         position: 'relative',

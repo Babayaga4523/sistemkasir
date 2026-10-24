@@ -204,7 +204,7 @@ export default function MenuManagementScreen({
       background: 'var(--bg-main)',
       overflowY: 'auto',
       minHeight: 0,
-      padding: '24px 32px 72px 32px'
+      padding: '16px 14px 100px 14px'
     }}>
       {/* Top Header */}
       <div style={{
@@ -268,11 +268,12 @@ export default function MenuManagementScreen({
       </div>
 
       {/* Category Pills */}
-      <div style={{
+      <div className="touch-scroll-x" style={{
         display: 'flex',
-        flexWrap: 'wrap',
         gap: '8px',
-        marginBottom: '20px'
+        marginBottom: '18px',
+        overflowX: 'auto',
+        paddingBottom: '4px'
       }}>
         <button
           type="button"
@@ -462,10 +463,11 @@ export default function MenuManagementScreen({
             style={{
               width: '100%',
               maxWidth: '480px',
+              maxHeight: '92vh',
+              overflowY: 'auto',
               background: 'var(--bg-surface)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-xl)',
-              overflow: 'hidden',
               boxShadow: 'var(--shadow-lg)'
             }}
           >

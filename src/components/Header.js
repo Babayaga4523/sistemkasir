@@ -91,6 +91,7 @@ export default function Header({
   const userDisplayName = (mounted && user?.email) ? user.email.split('@')[0] : 'Kasir';
 
   return (
+    <>
     <header className="no-print" style={{
       height: '68px',
       width: '100%',
@@ -185,8 +186,8 @@ export default function Header({
         </div>
       </Link>
 
-      {/* Main Tab Switcher */}
-      <nav style={{
+      {/* Main Tab Switcher (Desktop) */}
+      <nav className="hide-on-mobile" style={{
         display: 'flex',
         alignItems: 'center',
         background: 'rgba(0, 0, 0, 0.35)',
@@ -256,8 +257,8 @@ export default function Header({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            padding: '6px 11px',
+            gap: '5px',
+            padding: '6px 10px',
             borderRadius: '9px',
             background: 'rgba(245, 158, 11, 0.12)',
             border: '1px solid rgba(245, 158, 11, 0.35)',
@@ -268,12 +269,12 @@ export default function Header({
             transition: 'all 0.15s ease'
           }}
         >
-          <HelpCircle size={13} />
-          <span>Panduan</span>
+          <HelpCircle size={14} />
+          <span className="hide-on-mobile">Panduan</span>
         </button>
 
-        {/* Real-time Clock & Day/Date Widget */}
-        <div style={{
+        {/* Real-time Clock & Day/Date Widget (Desktop only) */}
+        <div className="hide-on-mobile" style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
@@ -294,8 +295,9 @@ export default function Header({
           </div>
         </div>
 
-        {/* User / Store Badge */}
+        {/* User / Store Badge (Desktop only) */}
         <div 
+          className="hide-on-mobile"
           onClick={() => router.push('/settings')}
           title="Klik untuk buka Pengaturan Kafe"
           style={{
@@ -331,8 +333,6 @@ export default function Header({
           </div>
         </div>
 
-
-
         {/* Logout Button */}
         {mounted && (
           <button
@@ -347,7 +347,7 @@ export default function Header({
               color: 'var(--accent-rose)',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '5px',
               cursor: 'pointer',
               fontSize: '11px',
               fontWeight: 700,
@@ -355,7 +355,7 @@ export default function Header({
             }}
           >
             <LogOut size={14} />
-            <span>Keluar</span>
+            <span className="hide-on-mobile">Keluar</span>
           </button>
         )}
       </div>
@@ -453,5 +453,39 @@ export default function Header({
         onClose={() => setInternalTutorialOpen(false)}
       />
     </header>
+
+    {/* Mobile Bottom Navigation Bar (Fixed at bottom on Android & Mobile) */}
+    <nav className="show-on-mobile mobile-bottom-nav no-print">
+      {navItems.map(item => {
+        const Icon = item.icon;
+        const isActive = pathname === item.path || activeTab === item.id;
+
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleNavClick(item)}
+            className={`mobile-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <div style={{ position: 'relative' }}>
+              <Icon size={19} color={isActive ? 'var(--accent-primary)' : 'currentColor'} />
+              {item.badge !== null && (
+                <span 
+                  className="mobile-nav-badge"
+                  style={{
+                    background: item.highlightBadge ? 'var(--accent-rose)' : 'var(--accent-primary)',
+                    color: '#fff'
+                  }}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </div>
+            <span>{item.label.split('/')[0].trim()}</span>
+          </button>
+        );
+      })}
+    </nav>
+    </>
   );
 }

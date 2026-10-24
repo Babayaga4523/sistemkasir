@@ -146,20 +146,26 @@ export default function PaymentModal({
           grid-template-columns: 1fr 1.05fr;
           gap: 18px;
         }
+        .payment-modal-card {
+          width: 100%;
+          max-width: 760px;
+          max-height: 94vh;
+        }
         @media (max-width: 680px) {
           .payment-modal-grid {
             grid-template-columns: 1fr;
-            gap: 16px;
+            gap: 14px;
+          }
+          .payment-modal-card {
+            max-height: 95vh !important;
+            border-radius: 20px !important;
           }
         }
       `}</style>
 
       <div 
-        className="animate-scale-up"
+        className="animate-scale-up payment-modal-card"
         style={{
-          width: '100%',
-          maxWidth: '760px',
-          maxHeight: 'min(94vh, 640px)',
           background: 'linear-gradient(150deg, #171412 0%, #0d0a08 100%)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '24px',

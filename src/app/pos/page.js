@@ -403,6 +403,7 @@ export default function POSPage() {
           storeName={store?.name}
           openBillsCount={openBills.length}
           onOpenActiveBills={() => setIsOpenBillsModalOpen(true)}
+          discounts={store?.discounts || []}
         />
       </div>
 

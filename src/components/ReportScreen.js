@@ -418,8 +418,38 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
       background: 'var(--bg-main)',
       overflowY: 'auto',
       minHeight: 0,
-      padding: '18px 24px 36px 24px'
+      padding: '14px 12px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 24px) 12px'
     }}>
+      <style>{`
+        .report-main-grid {
+          display: grid;
+          grid-template-columns: ${activeView === 'split' ? '1.25fr 0.85fr' : '1fr'};
+          gap: 16px;
+          align-items: start;
+        }
+        @media (max-width: 1024px) {
+          .report-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        .report-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        @media (max-width: 640px) {
+          .report-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+        }
+        @media (max-width: 360px) {
+          .report-kpi-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
       {/* 1. Header Bar: Title, View Switcher & Export */}
       <div style={{
         display: 'flex',
@@ -431,23 +461,25 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
         flexShrink: 0
       }}>
         <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>Laporan & Riwayat Penjualan</span>
+          <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <span>Laporan & Transaksi</span>
           </h1>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Rekap omzet keuangan warkop, metode bayar, dan riwayat transaksi kasir
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+            Rekap omzet keuangan warkop, metode bayar, dan nota transaksi kasir
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' }}>
           {/* View Mode Toggle */}
-          <div style={{
+          <div className="touch-scroll-x" style={{
             display: 'flex',
             background: 'rgba(0, 0, 0, 0.4)',
-            padding: '4px',
+            padding: '3px',
             borderRadius: '10px',
             border: '1px solid var(--border-subtle)',
-            gap: '4px'
+            gap: '3px',
+            maxWidth: '100%',
+            overflowX: 'auto'
           }}>
             <button
               type="button"
@@ -455,19 +487,20 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
+                gap: '5px',
+                padding: '6px 10px',
                 borderRadius: '7px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: activeView === 'split' ? 700 : 500,
                 background: activeView === 'split' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
                 color: activeView === 'split' ? 'var(--accent-primary)' : 'var(--text-muted)',
-                border: activeView === 'split' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent'
+                border: activeView === 'split' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                whiteSpace: 'nowrap'
               }}
               title="Tampilkan Ringkasan & Riwayat berdampingan"
             >
               <LayoutGrid size={13} />
-              <span>Semua (Split)</span>
+              <span>Semua</span>
             </button>
 
             <button
@@ -476,19 +509,20 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
+                gap: '5px',
+                padding: '6px 10px',
                 borderRadius: '7px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: activeView === 'table' ? 700 : 500,
                 background: activeView === 'table' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
                 color: activeView === 'table' ? 'var(--accent-primary)' : 'var(--text-muted)',
-                border: activeView === 'table' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent'
+                border: activeView === 'table' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                whiteSpace: 'nowrap'
               }}
               title="Fokus ke Tabel Riwayat Transaksi"
             >
               <TableIcon size={13} />
-              <span>Riwayat Transaksi</span>
+              <span>Riwayat</span>
             </button>
 
             <button
@@ -497,19 +531,20 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
+                gap: '5px',
+                padding: '6px 10px',
                 borderRadius: '7px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: activeView === 'analytics' ? 700 : 500,
                 background: activeView === 'analytics' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
                 color: activeView === 'analytics' ? 'var(--accent-primary)' : 'var(--text-muted)',
-                border: activeView === 'analytics' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent'
+                border: activeView === 'analytics' ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid transparent',
+                whiteSpace: 'nowrap'
               }}
               title="Fokus ke Analitik Menu & Pembayaran"
             >
               <LucidePieChart size={13} />
-              <span>Grafik Analitik</span>
+              <span>Grafik</span>
             </button>
           </div>
 
@@ -521,18 +556,19 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 14px',
+              padding: '6px 12px',
               borderRadius: '9px',
-              background: 'rgba(255, 255, 255, 0.06)',
+              background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid var(--border-subtle)',
               color: '#fff',
-              fontSize: '12px',
+              fontSize: '11.5px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
             }}
           >
-            <Download size={14} color="var(--accent-primary)" />
-            <span>Export CSV ({filteredOrders.length})</span>
+            <Download size={13} color="var(--accent-primary)" />
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
@@ -542,30 +578,31 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '12px',
+        gap: '10px',
         background: 'var(--bg-surface)',
-        padding: '12px 16px',
+        padding: '10px 14px',
         borderRadius: '14px',
         border: '1px solid var(--border-subtle)',
-        marginBottom: '16px',
+        marginBottom: '14px',
         flexWrap: 'wrap',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
       }}>
-        {/* Preset Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        {/* Preset Buttons with touch-scroll */}
+        <div className="touch-scroll-x" style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', width: '100%', paddingBottom: '2px' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '5px',
+            gap: '4px',
             fontSize: '11px',
             fontWeight: 700,
             color: 'var(--accent-primary)',
-            marginRight: '4px',
-            paddingRight: '8px',
-            borderRight: '1px solid var(--border-subtle)'
+            marginRight: '2px',
+            paddingRight: '6px',
+            borderRight: '1px solid var(--border-subtle)',
+            whiteSpace: 'nowrap'
           }}>
-            <Calendar size={14} />
-            <span>Periode:</span>
+            <Calendar size={13} />
+            <span>Filter:</span>
           </div>
 
           {[
@@ -711,13 +748,7 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
       </div>
 
       {/* 2. Top Sleek KPI Chips */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px',
-        marginBottom: '16px',
-        flexShrink: 0
-      }}>
+      <div className="report-kpi-grid" style={{ flexShrink: 0 }}>
         {/* KPI 1: Omzet */}
         <div style={{
           padding: '12px 16px',
@@ -860,12 +891,7 @@ export default function ReportScreen({ orders, onReprintReceipt, onSettleOrder }
       </div>
 
       {/* 3. Main Body Section: Split or Single Column */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: activeView === 'split' ? '1.25fr 0.85fr' : '1fr',
-        gap: '16px',
-        alignItems: 'start'
-      }}>
+      <div className="report-main-grid">
         {/* === SECTION A: TRANSACTION TABLE === */}
         {(activeView === 'split' || activeView === 'table') && (
           <div style={{

@@ -490,24 +490,48 @@ export default function MenuPage() {
     }}>
       <Header />
 
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        width: '100%',
-        height: 'calc(100vh - 68px)',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        padding: '24px 32px 80px 32px',
-        boxSizing: 'border-box'
-      }}>
+      <style>{`
+        .menu-page-container {
+          padding: 20px 24px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 24px) 24px;
+        }
+        @media (max-width: 768px) {
+          .menu-page-container {
+            padding: 12px 10px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 24px) 10px !important;
+          }
+        }
+        .menu-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 14px;
+        }
+        @media (max-width: 600px) {
+          .menu-grid {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+        }
+      `}</style>
+
+      <div 
+        className="menu-page-container"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          height: 'calc(100vh - 68px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          boxSizing: 'border-box'
+        }}
+      >
         {/* Top Header & Actions */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '24px',
+          marginBottom: '20px',
           flexWrap: 'wrap',
-          gap: '16px'
+          gap: '12px'
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -608,7 +632,7 @@ export default function MenuPage() {
           flexWrap: 'wrap'
         }}>
           {/* Categories Filter Pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+          <div className="touch-scroll-x" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
             <button
               type="button"
               onClick={() => setSelectedCategory('all')}
@@ -756,11 +780,7 @@ export default function MenuPage() {
             </div>
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '16px'
-          }}>
+          <div className="menu-grid">
             {filteredProducts.map(prod => {
               const catName = categories.find(c => c.id === prod.category_id)?.name || 'Lainnya';
               const margin = prod.cost_price && prod.cost_price > 0 

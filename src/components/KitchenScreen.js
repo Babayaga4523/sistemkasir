@@ -53,51 +53,54 @@ export default function KitchenScreen({ orders, onUpdateStatus }) {
     }}>
       {/* Top Bar */}
       <div style={{
-        padding: '16px 28px',
+        padding: '12px 14px',
         borderBottom: '1px solid var(--border-subtle)',
         background: 'rgba(23, 20, 18, 0.5)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
         flexShrink: 0
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
-            width: '38px',
-            height: '38px',
+            width: '34px',
+            height: '34px',
             borderRadius: '10px',
             background: 'rgba(245, 158, 11, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            flexShrink: 0
           }}>
-            <ChefHat size={20} color="var(--accent-primary)" />
+            <ChefHat size={18} color="var(--accent-primary)" />
           </div>
           <div>
-            <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-              Kitchen & Bar Display System (KDS)
+            <h1 style={{ fontSize: '15px', fontWeight: 800, color: '#fff', margin: 0 }}>
+              Dapur & Bar (KDS)
             </h1>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Pantau antrean pesanan makanan & racikan kopi secara real-time
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Antrean pesanan makanan & kopi real-time
             </div>
           </div>
         </div>
 
         {/* Status Counts */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
-            padding: '6px 14px',
-            borderRadius: '10px',
-            background: 'rgba(245, 158, 11, 0.1)',
-            border: '1px solid rgba(245, 158, 11, 0.25)',
-            fontSize: '12px',
-            fontWeight: 600,
+            padding: '5px 10px',
+            borderRadius: '9px',
+            background: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            fontSize: '11px',
+            fontWeight: 700,
             color: 'var(--accent-primary)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '5px'
           }}>
-            <Flame size={14} />
+            <Flame size={13} />
             <span>{activeOrders.length} Pesanan Aktif</span>
           </div>
         </div>
@@ -110,10 +113,10 @@ export default function KitchenScreen({ orders, onUpdateStatus }) {
         width: '100%',
         overflowY: 'auto',
         overflowX: 'hidden',
-        padding: '24px 28px 80px 28px',
+        padding: '14px 12px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 24px) 12px',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-        gap: '20px',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
+        gap: '12px',
         alignContent: 'start',
         boxSizing: 'border-box'
       }}>

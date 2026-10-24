@@ -85,17 +85,35 @@ export default function OnboardingPage() {
       padding: '24px 16px',
       boxSizing: 'border-box'
     }}>
-      <div className="animate-scale-up" style={{
-        width: '100%',
-        maxWidth: '520px',
-        background: 'rgba(23, 20, 18, 0.9)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '24px',
-        padding: '36px 32px',
-        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85)',
-        position: 'relative'
-      }}>
+      <style>{`
+        .onboarding-card {
+          width: 100%;
+          max-width: 520px;
+          background: rgba(23, 20, 18, 0.9);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--border-subtle);
+          border-radius: 24px;
+          padding: 36px 32px;
+          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+          position: relative;
+          box-sizing: border-box;
+        }
+        .onboarding-grid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          gap: 12px;
+        }
+        @media (max-width: 480px) {
+          .onboarding-card {
+            padding: 24px 18px !important;
+            border-radius: 18px !important;
+          }
+          .onboarding-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+      <div className="animate-scale-up onboarding-card">
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
@@ -175,7 +193,7 @@ export default function OnboardingPage() {
           </div>
 
           {/* No. Telepon & Mata Uang */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+          <div className="onboarding-grid">
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
                 Nomor Telepon / WA

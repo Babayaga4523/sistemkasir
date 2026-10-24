@@ -15,7 +15,8 @@ import {
   CookingPot,
   MessageSquare,
   Check,
-  Edit2
+  Edit2,
+  X
 } from 'lucide-react';
 
 export default function CartSidebar({
@@ -41,9 +42,13 @@ export default function CartSidebar({
   onOpenPayment,
   onSendToKitchenDirect,
   openBillsCount = 0,
-  onOpenActiveBills
+  onOpenActiveBills,
+  isMobileDrawer = false,
+  onCloseMobileDrawer,
+  discounts = []
 }) {
   const [showDiscountInput, setShowDiscountInput] = useState(false);
+  const [customDiscInput, setCustomDiscInput] = useState('');
   const [editingNoteIdx, setEditingNoteIdx] = useState(null);
   const [tempNoteText, setTempNoteText] = useState('');
 
@@ -78,15 +83,16 @@ export default function CartSidebar({
 
   return (
     <aside className="no-print" style={{
-      width: '380px',
+      width: isMobileDrawer ? '100%' : '380px',
       maxWidth: '100%',
       height: '100%',
       background: 'var(--bg-sidebar)',
-      borderLeft: '1px solid var(--border-subtle)',
+      borderLeft: isMobileDrawer ? 'none' : '1px solid var(--border-subtle)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
-      overflow: 'hidden'
+      overflow: 'hidden',
+      borderRadius: isMobileDrawer ? '20px 20px 0 0' : 0
     }}>
       {/* 1. Header & Customer / Table Info */}
       <div style={{
@@ -154,6 +160,29 @@ export default function CartSidebar({
               >
                 <Trash2 size={13} />
                 <span>Batal</span>
+              </button>
+            )}
+
+            {onCloseMobileDrawer && (
+              <button
+                type="button"
+                onClick={onCloseMobileDrawer}
+                title="Tutup Keranjang"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginLeft: '4px'
+                }}
+              >
+                <X size={16} />
               </button>
             )}
           </div>
@@ -609,50 +638,129 @@ export default function CartSidebar({
           </div>
 
           {showDiscountInput && (
-            <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-              <button
-                type="button"
-                onClick={() => { setDiscount(Math.round(subtotal * 0.1)); setShowDiscountInput(false); }}
-                style={{
-                  flex: 1,
-                  padding: '4px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#fff',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle)'
-                }}
-              >
-                10% Member
-              </button>
-              <button
-                type="button"
-                onClick={() => { setDiscount(5000); setShowDiscountInput(false); }}
-                style={{
-                  flex: 1,
-                  padding: '4px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#fff',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle)'
-                }}
-              >
-                Rp 5.000
-              </button>
-              <button
-                type="button"
-                onClick={() => { setDiscount(0); setShowDiscountInput(false); }}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  color: 'var(--accent-rose)',
-                  fontSize: '11px'
-                }}
-              >
-                Reset
-              </button>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              marginTop: '4px',
+              padding: '8px 10px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: '10px',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Pilih Diskon Promo:
+              </div>
+
+              {/* Tombol Diskon Aktif */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '5px' }}>
+                {(Array.isArray(discounts) && discounts.filter(d => d.is_active !== false).length > 0 
+                  ? discounts.filter(d => d.is_active !== false)
+                  : [
+                      { id: 'def-1', name: '10% Member', type: 'percentage', value: 10, min_order: 0 },
+                      { id: 'def-2', name: 'Rp 5.000', type: 'fixed', value: 5000, min_order: 0 }
+                    ]
+                ).map(d => {
+                  const isEligible = !d.min_order || subtotal >= Number(d.min_order);
+                  const calculatedDiscount = d.type === 'percentage'
+                    ? Math.round(subtotal * (Number(d.value) / 100))
+                    : Math.min(subtotal, Number(d.value) || 0);
+
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      disabled={!isEligible}
+                      onClick={() => {
+                        setDiscount(calculatedDiscount);
+                        setShowDiscountInput(false);
+                      }}
+                      title={!isEligible ? `Minimal belanja Rp ${Number(d.min_order).toLocaleString('id-ID')}` : d.name}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        background: isEligible ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-subtle)',
+                        color: isEligible ? '#fff' : 'var(--text-faint)',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        cursor: isEligible ? 'pointer' : 'not-allowed',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}
+                    >
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+                      <div style={{ fontSize: '9px', color: isEligible ? 'var(--accent-primary)' : 'var(--text-faint)', fontWeight: 700 }}>
+                        {d.type === 'percentage' ? `${d.value}% (-${formatIDR(calculatedDiscount)})` : `-${formatIDR(d.value)}`}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Input Nominal Diskon Kustom */}
+              <div style={{ display: 'flex', gap: '5px', marginTop: '3px' }}>
+                <input
+                  type="number"
+                  placeholder="Nominal manual (Rp)..."
+                  value={customDiscInput}
+                  onChange={(e) => setCustomDiscInput(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#fff',
+                    fontSize: '11px'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = Number(customDiscInput);
+                    if (!isNaN(val) && val > 0) {
+                      setDiscount(Math.min(subtotal, val));
+                      setCustomDiscInput('');
+                      setShowDiscountInput(false);
+                    }
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    background: 'var(--accent-primary)',
+                    color: '#000',
+                    fontWeight: 700,
+                    fontSize: '10.5px',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Terapkan
+                </button>
+                {discount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDiscount(0);
+                      setShowDiscountInput(false);
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: 'var(--accent-rose)',
+                      fontSize: '10.5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Reset (0)
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

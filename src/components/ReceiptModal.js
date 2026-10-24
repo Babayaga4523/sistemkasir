@@ -23,6 +23,8 @@ import {
   formatWhatsAppReceipt,
   getPrinterSettings,
   savePrinterSettings,
+  generateBarcodeSvg,
+  formatIDR,
   PAPER_WIDTHS 
 } from '../utils/printer';
 
@@ -34,6 +36,7 @@ export default function ReceiptModal({
   onNewTransaction
 }) {
   const [paperWidth, setPaperWidth] = useState('58mm');
+  const [showWifi, setShowWifi] = useState(true);
   const [isPrintingIframe, setIsPrintingIframe] = useState(false);
   const [isPrintingBt, setIsPrintingBt] = useState(false);
   const [btStatus, setBtStatus] = useState(null);
@@ -41,12 +44,15 @@ export default function ReceiptModal({
   const [showWaInput, setShowWaInput] = useState(false);
   const [customerPhone, setCustomerPhone] = useState('');
 
-  // Load saved printer preferences
+  // Muat preferensi printer yang tersimpan
   useEffect(() => {
     if (isOpen) {
       const settings = getPrinterSettings();
       if (settings?.paperWidth) {
         setPaperWidth(settings.paperWidth);
+      }
+      if (typeof settings?.showWifi === 'boolean') {
+        setShowWifi(settings.showWifi);
       }
     }
   }, [isOpen]);
@@ -61,14 +67,17 @@ export default function ReceiptModal({
   const wifiSsid = store?.wifi_ssid;
   const wifiPass = store?.wifi_password;
 
-  const formatIDR = (num) => {
-    return `Rp ${Number(num || 0).toLocaleString('id-ID')}`;
-  };
-
   const handleSelectPaperWidth = (width) => {
     setPaperWidth(width);
     const curr = getPrinterSettings();
     savePrinterSettings({ ...curr, paperWidth: width });
+  };
+
+  const handleToggleWifi = () => {
+    const nextVal = !showWifi;
+    setShowWifi(nextVal);
+    const curr = getPrinterSettings();
+    savePrinterSettings({ ...curr, showWifi: nextVal });
   };
 
   // Cetak Thermal Standar / USB via Isolated Iframe
@@ -79,11 +88,10 @@ export default function ReceiptModal({
         order,
         store,
         paperWidth,
-        showWifi: true
+        showWifi
       });
     } catch (err) {
       console.error('Error print thermal:', err);
-      // Fallback ke window.print
       window.print();
     } finally {
       setIsPrintingIframe(false);
@@ -100,7 +108,7 @@ export default function ReceiptModal({
         order,
         store,
         paperWidth,
-        showWifi: true
+        showWifi
       });
 
       if (res?.cancelled) {
@@ -122,7 +130,7 @@ export default function ReceiptModal({
 
   // Salin Struk ke Clipboard
   const handleCopyReceipt = () => {
-    const text = formatWhatsAppReceipt({ order, store, showWifi: true });
+    const text = formatWhatsAppReceipt({ order, store, showWifi });
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -133,7 +141,7 @@ export default function ReceiptModal({
 
   // Buka WhatsApp Langsung
   const handleOpenWhatsApp = () => {
-    const text = formatWhatsAppReceipt({ order, store, showWifi: true });
+    const text = formatWhatsAppReceipt({ order, store, showWifi });
     let phone = customerPhone.replace(/\D/g, '');
     if (phone.startsWith('0')) {
       phone = '62' + phone.substring(1);
@@ -155,33 +163,54 @@ export default function ReceiptModal({
         position: 'fixed',
         inset: 0,
         zIndex: 120,
-        background: 'rgba(0, 0, 0, 0.85)',
+        background: 'rgba(0, 0, 0, 0.88)',
         backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px'
+        padding: '12px'
       }}
     >
+      <style>{`
+        @media (max-width: 480px) {
+          .receipt-modal-backdrop {
+            padding: 6px !important;
+          }
+          .receipt-modal-content {
+            border-radius: 18px !important;
+            max-height: 98vh !important;
+          }
+        }
+
+        /* Sawtooth jagged paper tear edges */
+        .jagged-receipt {
+          position: relative;
+          clip-path: polygon(
+            0% 6px, 2% 0, 4% 6px, 6% 0, 8% 6px, 10% 0, 12% 6px, 14% 0, 16% 6px, 18% 0, 20% 6px, 22% 0, 24% 6px, 26% 0, 28% 6px, 30% 0, 32% 6px, 34% 0, 36% 6px, 38% 0, 40% 6px, 42% 0, 44% 6px, 46% 0, 48% 6px, 50% 0, 52% 6px, 54% 0, 56% 6px, 58% 0, 60% 6px, 62% 0, 64% 6px, 66% 0, 68% 6px, 70% 0, 72% 6px, 74% 0, 76% 6px, 78% 0, 80% 6px, 82% 0, 84% 6px, 86% 0, 88% 6px, 90% 0, 92% 6px, 94% 0, 96% 6px, 98% 0, 100% 6px,
+            100% calc(100% - 6px), 98% 100%, 96% calc(100% - 6px), 94% 100%, 92% calc(100% - 6px), 90% 100%, 88% calc(100% - 6px), 86% 100%, 84% calc(100% - 6px), 82% 100%, 80% calc(100% - 6px), 78% 100%, 76% calc(100% - 6px), 74% 100%, 72% calc(100% - 6px), 70% 100%, 68% calc(100% - 6px), 66% 100%, 64% calc(100% - 6px), 62% 100%, 60% calc(100% - 6px), 58% 100%, 56% calc(100% - 6px), 54% 100%, 52% calc(100% - 6px), 50% 100%, 48% calc(100% - 6px), 46% 100%, 44% calc(100% - 6px), 42% 100%, 40% calc(100% - 6px), 38% 100%, 36% calc(100% - 6px), 34% 100%, 32% calc(100% - 6px), 30% 100%, 28% calc(100% - 6px), 26% 100%, 24% calc(100% - 6px), 22% 100%, 20% calc(100% - 6px), 18% 100%, 16% calc(100% - 6px), 14% 100%, 12% calc(100% - 6px), 10% 100%, 8% calc(100% - 6px), 6% 100%, 4% calc(100% - 6px), 2% 100%, 0% calc(100% - 6px)
+          );
+        }
+      `}</style>
+      
       <div 
         className="receipt-modal-content animate-scale-up"
         style={{
           width: '100%',
-          maxWidth: is80 ? '480px' : '430px',
+          maxWidth: is80 ? '490px' : '440px',
           maxHeight: '94vh',
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-subtle)',
           borderRadius: 'var(--radius-xl)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.95)',
           overflow: 'hidden',
           transition: 'max-width 0.25s ease'
         }}
       >
         {/* Modal Header */}
         <div className="no-print" style={{
-          padding: '14px 18px',
+          padding: '12px 18px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -201,9 +230,9 @@ export default function ReceiptModal({
               <Printer size={15} color="var(--accent-primary)" />
             </div>
             <div>
-              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#fff' }}>Cetak Struk Transaksi</span>
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#fff' }}>Pratinjau & Cetak Struk</span>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                Nomor: #{order.order_number}
+                No. Nota: #{order.order_number}
               </div>
             </div>
           </div>
@@ -225,21 +254,18 @@ export default function ReceiptModal({
           </button>
         </div>
 
-        {/* Paper Size Selector & Quick Notice */}
+        {/* Paper Size Selector & Options Bar */}
         <div className="no-print" style={{
-          padding: '8px 18px',
+          padding: '8px 16px',
           background: 'rgba(15, 12, 10, 0.95)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '10px'
+          flexWrap: 'wrap',
+          gap: '8px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-            <Layers size={13} color="var(--accent-primary)" />
-            <span>Ukuran Kertas:</span>
-          </div>
-
+          {/* Paper Width Pills */}
           <div style={{
             display: 'flex',
             background: 'rgba(255, 255, 255, 0.06)',
@@ -282,12 +308,36 @@ export default function ReceiptModal({
               80mm (Resto)
             </button>
           </div>
+
+          {/* WiFi Toggle on Receipt */}
+          {(wifiSsid || wifiPass) && (
+            <button
+              type="button"
+              onClick={handleToggleWifi}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 600,
+                background: showWifi ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${showWifi ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
+                color: showWifi ? '#34d399' : 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+            >
+              <Wifi size={12} />
+              <span>WiFi: {showWifi ? 'Cetak' : 'Sembunyi'}</span>
+            </button>
+          )}
         </div>
 
         {/* Status Toast Notification for Bluetooth */}
         {btStatus && (
           <div className="no-print" style={{
-            padding: '8px 18px',
+            padding: '7px 16px',
             background: btStatus.includes('berhasil') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
             borderBottom: '1px solid rgba(245, 158, 11, 0.3)',
             color: btStatus.includes('berhasil') ? '#34d399' : '#fbbf24',
@@ -298,7 +348,7 @@ export default function ReceiptModal({
             gap: '6px',
             animation: 'fadeIn 0.2s ease'
           }}>
-            <Bluetooth size={14} className={isPrintingBt ? 'animate-pulse' : ''} />
+            <Bluetooth size={13} className={isPrintingBt ? 'animate-pulse' : ''} />
             <span>{btStatus}</span>
           </div>
         )}
@@ -309,7 +359,7 @@ export default function ReceiptModal({
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '16px',
+            padding: '20px 14px',
             background: '#0d0b09',
             display: 'flex',
             justifyContent: 'center',
@@ -318,51 +368,51 @@ export default function ReceiptModal({
         >
           <div 
             id="thermal-receipt"
+            className={`jagged-receipt ${is80 ? 'receipt-80mm' : 'receipt-58mm'}`}
             style={{
               width: '100%',
-              maxWidth: is80 ? '360px' : '280px',
-              background: '#fff',
-              color: '#111',
-              padding: is80 ? '20px 18px' : '16px 14px',
-              fontFamily: "'Courier New', Courier, monospace",
-              fontSize: '11px',
+              maxWidth: is80 ? '370px' : '290px',
+              background: '#ffffff',
+              color: '#000000',
+              padding: is80 ? '22px 20px 24px 20px' : '18px 14px 20px 14px',
+              fontFamily: "'SF Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace, sans-serif",
+              fontSize: is80 ? '11px' : '10px',
               lineHeight: 1.35,
-              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
-              borderRadius: '6px',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.85)',
               position: 'relative',
-              transition: 'max-width 0.2s ease',
+              transition: 'all 0.2s ease',
               boxSizing: 'border-box'
             }}
           >
-            {/* Header Struk */}
-            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+            {/* 1. Header Toko */}
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
               {cafeLogo && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
                   <img 
                     src={cafeLogo} 
                     alt={cafeName} 
-                    style={{ maxHeight: '42px', maxWidth: '120px', objectFit: 'contain' }} 
+                    style={{ maxHeight: '44px', maxWidth: '130px', objectFit: 'contain', filter: 'grayscale(100%) contrast(150%)' }} 
                   />
                 </div>
               )}
-              <div style={{ fontSize: is80 ? '15px' : '13px', fontWeight: 900, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: is80 ? '16px' : '14px', fontWeight: 900, letterSpacing: '0.5px', textTransform: 'uppercase', lineHeight: 1.2 }}>
                 {cafeName}
               </div>
-              {cafeAddress && <div style={{ fontSize: '9.5px', color: '#555', marginTop: '2px' }}>{cafeAddress}</div>}
-              {cafePhone && <div style={{ fontSize: '9.5px', color: '#555' }}>Telp: {cafePhone}</div>}
+              {cafeAddress && <div style={{ fontSize: is80 ? '10px' : '9.5px', color: '#333', marginTop: '2px', lineHeight: 1.3 }}>{cafeAddress}</div>}
+              {cafePhone && <div style={{ fontSize: is80 ? '10px' : '9.5px', color: '#333' }}>Telp/WA: {cafePhone}</div>}
             </div>
 
-            <div style={{ borderTop: '1px dashed #333', margin: '7px 0' }} />
+            <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* Info Pesanan */}
-            <div style={{ fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '2px', color: '#222' }}>
+            {/* 2. Metadata Pesanan */}
+            <div style={{ fontSize: is80 ? '10.5px' : '9.5px', display: 'flex', flexDirection: 'column', gap: '2px', color: '#111', lineHeight: 1.45 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>No. Nota:</span>
-                <span style={{ fontWeight: 700 }}>#{order.order_number}</span>
+                <span style={{ fontWeight: 800 }}>#{order.order_number}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Waktu:</span>
-                <span>{new Date(order.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} • {new Date(order.created_at || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                <span>{new Date(order.created_at || Date.now()).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} • {new Date(order.created_at || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Kasir:</span>
@@ -374,47 +424,59 @@ export default function ReceiptModal({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Layanan:</span>
-                <span style={{ fontWeight: 700 }}>{order.order_type === 'dine_in' ? `Meja ${order.table_number || '-'}` : 'Bawa Pulang'}</span>
+                <span style={{ fontWeight: 700 }}>{order.order_type === 'dine_in' ? `Dine-In (Meja ${order.table_number || '-'})` : 'Bawa Pulang / Takeaway'}</span>
               </div>
             </div>
 
-            <div style={{ borderTop: '1px dashed #333', margin: '7px 0' }} />
+            <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* Items Table */}
+            {/* 3. Items Menu (Layout 2 Baris: Nama Menu lalu Qty x Harga & Subtotal) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              {(order.items || []).map((it, idx) => (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-                    <span style={{ flex: 1, paddingRight: '4px' }}>{it.product_name}</span>
-                    <span style={{ whiteSpace: 'nowrap' }}>{formatIDR(it.subtotal || it.price * it.quantity)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#555' }}>
-                    <span>{it.quantity} x {formatIDR(it.price)}</span>
-                    {it.selected_options && Object.keys(it.selected_options).length > 0 && (
-                      <span style={{ fontStyle: 'italic' }}>
-                        {Object.values(it.selected_options).join(', ')}
-                      </span>
+              {(order.items || []).map((it, idx) => {
+                const variantText = it.selected_options && Object.keys(it.selected_options).length > 0 
+                  ? Object.values(it.selected_options).join(', ') 
+                  : '';
+                const subtotalText = formatIDR(it.subtotal || it.price * it.quantity);
+                const unitPriceText = formatIDR(it.price);
+
+                return (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                    {/* Baris 1: Nama Menu */}
+                    <div style={{ fontWeight: 700, color: '#000', wordBreak: 'break-word', lineHeight: 1.25 }}>
+                      {it.product_name}
+                    </div>
+                    {/* Baris 2: Qty x Harga Satuan (kiri) & Subtotal (kanan) */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: is80 ? '10px' : '9.5px', color: '#222' }}>
+                      <span style={{ paddingLeft: '6px' }}>{it.quantity} x {unitPriceText}</span>
+                      <span style={{ fontWeight: 700, color: '#000' }}>{subtotalText}</span>
+                    </div>
+                    {/* Baris 3: Opsi Varian (jika ada) */}
+                    {variantText && (
+                      <div style={{ fontSize: '8.5px', color: '#555', paddingLeft: '6px', fontStyle: 'italic' }}>
+                        • [{variantText}]
+                      </div>
+                    )}
+                    {/* Baris 4: Catatan Khusus (jika ada) */}
+                    {it.notes && (
+                      <div style={{ fontSize: '8.5px', color: '#444', paddingLeft: '6px', fontStyle: 'italic' }}>
+                        * Catatan: {it.notes}
+                      </div>
                     )}
                   </div>
-                  {it.notes && (
-                    <div style={{ fontSize: '9px', color: '#444', fontStyle: 'italic' }}>
-                      Catatan: {it.notes}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <div style={{ borderTop: '1px dashed #333', margin: '8px 0' }} />
+            <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* Total Calculation */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10.5px' }}>
+            {/* 4. Rincian Biaya */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: is80 ? '10.5px' : '9.5px', color: '#111' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Subtotal</span>
                 <span>{formatIDR(order.subtotal)}</span>
               </div>
               {order.discount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#000' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Diskon Promo</span>
                   <span>-{formatIDR(order.discount)}</span>
                 </div>
@@ -431,70 +493,67 @@ export default function ReceiptModal({
                   <span>{formatIDR(order.service_charge)}</span>
                 </div>
               )}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontWeight: 900,
-                fontSize: is80 ? '13px' : '12px',
-                paddingTop: '4px',
-                borderTop: '1px solid #111',
-                marginTop: '3px'
-              }}>
-                <span>TOTAL</span>
-                <span>{formatIDR(order.total)}</span>
-              </div>
             </div>
 
-            <div style={{ borderTop: '1px dashed #333', margin: '7px 0' }} />
+            <div style={{ borderTop: '1.5px solid #000', margin: '6px 0' }} />
 
-            {/* Payment Details */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '10px', color: '#222' }}>
+            {/* 5. Total Pembayaran */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontWeight: 900,
+              fontSize: is80 ? '14px' : '13px',
+              padding: '2px 0'
+            }}>
+              <span>TOTAL</span>
+              <span>{formatIDR(order.total)}</span>
+            </div>
+
+            <div style={{ borderTop: '1.5px solid #000', margin: '6px 0' }} />
+
+            {/* 6. Detail Pembayaran */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: is80 ? '10.5px' : '9.5px', color: '#111' }}>
               {isUnpaid ? (
                 <div style={{
-                  background: '#fee2e2',
-                  color: '#b91c1c',
-                  padding: '4px 6px',
-                  borderRadius: '3px',
+                  padding: '4px',
+                  border: '1.5px dashed #000',
                   textAlign: 'center',
                   fontWeight: 900,
-                  fontSize: '10px',
-                  letterSpacing: '0.5px',
-                  marginBottom: '3px',
-                  border: '1px solid #f87171'
+                  fontSize: is80 ? '11px' : '10px',
+                  letterSpacing: '0.3px',
+                  marginBottom: '4px'
                 }}>
                   *** TAGIHAN SEMENTARA (BELUM LUNAS) ***
                 </div>
               ) : (
                 <div style={{
-                  background: '#f0fdf4',
-                  color: '#15803d',
-                  padding: '3px 6px',
-                  borderRadius: '3px',
+                  padding: '4px',
+                  border: '1.5px solid #000',
                   textAlign: 'center',
                   fontWeight: 900,
-                  fontSize: '9.5px',
-                  letterSpacing: '0.5px',
-                  marginBottom: '3px',
-                  border: '1px solid #86efac'
+                  fontSize: is80 ? '11px' : '10px',
+                  letterSpacing: '0.3px',
+                  marginBottom: '4px'
                 }}>
                   *** LUNAS ***
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Metode:</span>
-                <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>
-                  {isUnpaid ? 'BELUM LUNAS (OPEN BILL)' : (order.payment_method || 'CASH')}
+                <span>Metode Bayar:</span>
+                <span style={{ textTransform: 'uppercase', fontWeight: 800 }}>
+                  {isUnpaid ? 'OPEN BILL' : (order.payment_method || 'CASH')}
                 </span>
               </div>
               {!isUnpaid && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Diterima:</span>
+                    <span>Nominal Diterima:</span>
                     <span>{formatIDR(order.amount_paid || order.total)}</span>
                   </div>
                   {order.change_amount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: is80 ? '11px' : '10px' }}>
                       <span>Kembalian:</span>
                       <span>{formatIDR(order.change_amount)}</span>
                     </div>
@@ -503,25 +562,34 @@ export default function ReceiptModal({
               )}
             </div>
 
-            {/* WiFi Facility */}
-            {(wifiSsid || wifiPass) && (
+            {/* 7. Fasilitas WiFi Kafe */}
+            {(showWifi && (wifiSsid || wifiPass)) && (
               <>
-                <div style={{ borderTop: '1px dashed #333', margin: '7px 0' }} />
-                <div style={{ textAlign: 'center', fontSize: '9.5px', lineHeight: 1.3, color: '#333' }}>
-                  <div style={{ fontWeight: 700 }}>📶 Fasilitas WiFi</div>
-                  {wifiSsid && <div>SSID: <strong>{wifiSsid}</strong></div>}
-                  {wifiPass && <div>Pass: <strong>{wifiPass}</strong></div>}
+                <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
+                <div style={{
+                  border: '1px dashed #000',
+                  padding: '5px 8px',
+                  borderRadius: '4px',
+                  textAlign: 'center',
+                  margin: '4px 0'
+                }}>
+                  <div style={{ fontWeight: 800, fontSize: is80 ? '10px' : '9.5px', letterSpacing: '0.3px' }}>📶 FASILITAS WIFI KAFE</div>
+                  {wifiSsid && <div style={{ fontSize: is80 ? '9.5px' : '9px', marginTop: '2px' }}>SSID: <strong>{wifiSsid}</strong></div>}
+                  {wifiPass && <div style={{ fontSize: is80 ? '9.5px' : '9px' }}>Password: <strong>{wifiPass}</strong></div>}
                 </div>
               </>
             )}
 
-            <div style={{ borderTop: '1px dashed #333', margin: '8px 0' }} />
+            {/* 8. Barcode Vektor */}
+            <div dangerouslySetInnerHTML={{ __html: generateBarcodeSvg(order.order_number) }} />
 
-            {/* Footer Struk */}
-            <div style={{ textAlign: 'center', fontSize: '9px', color: '#555', display: 'flex', flexDirection: 'column', gap: '2px', whiteSpace: 'pre-line' }}>
+            <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
+
+            {/* 9. Footer Struk */}
+            <div style={{ textAlign: 'center', fontSize: is80 ? '9.5px' : '9px', color: '#333', display: 'flex', flexDirection: 'column', gap: '2px', whiteSpace: 'pre-line' }}>
               <div>{cafeFooter}</div>
-              <div style={{ fontSize: '8px', color: '#888', marginTop: '3px' }}>
-                Sistem Kasir Warkop POS
+              <div style={{ fontSize: '8px', color: '#666', marginTop: '4px' }}>
+                Warkop & Cafe POS • Sistem Kasir Modern
               </div>
             </div>
           </div>
@@ -530,7 +598,7 @@ export default function ReceiptModal({
         {/* WhatsApp Direct Drawer (Expandable) */}
         {showWaInput && (
           <div className="no-print" style={{
-            padding: '10px 18px',
+            padding: '10px 16px',
             background: 'rgba(16, 185, 129, 0.1)',
             borderTop: '1px solid rgba(16, 185, 129, 0.25)',
             display: 'flex',
@@ -539,14 +607,14 @@ export default function ReceiptModal({
           }}>
             <input 
               type="text"
-              placeholder="Contoh: 08123456789 (Nomor WA Pembeli)"
+              placeholder="Contoh: 08123456789 (Nomor WA Pelanggan)"
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
               style={{
                 flex: 1,
                 padding: '8px 12px',
                 borderRadius: '8px',
-                background: 'rgba(0,0,0,0.4)',
+                background: 'rgba(0,0,0,0.5)',
                 border: '1px solid rgba(16, 185, 129, 0.4)',
                 color: '#fff',
                 fontSize: '12px'
@@ -575,9 +643,9 @@ export default function ReceiptModal({
           </div>
         )}
 
-        {/* Modal Actions */}
+        {/* Modal Action Buttons */}
         <div className="no-print" style={{
-          padding: '14px 18px',
+          padding: '12px 16px',
           borderTop: '1px solid var(--border-subtle)',
           background: 'rgba(23, 20, 18, 0.98)',
           display: 'flex',
@@ -593,7 +661,7 @@ export default function ReceiptModal({
               disabled={isPrintingIframe}
               title="Cetak struk ke printer thermal via driver USB / dialog cetak bersih"
               style={{
-                padding: '11px',
+                padding: '10px',
                 borderRadius: '10px',
                 background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%)',
                 color: '#000',
@@ -620,7 +688,7 @@ export default function ReceiptModal({
               disabled={isPrintingBt}
               title="Cetak langsung ke mini printer Bluetooth portable (ESC/POS) tanpa popup dialog"
               style={{
-                padding: '11px',
+                padding: '10px',
                 borderRadius: '10px',
                 background: 'rgba(59, 130, 246, 0.15)',
                 border: '1px solid rgba(59, 130, 246, 0.4)',
@@ -642,7 +710,7 @@ export default function ReceiptModal({
 
           {/* Secondary Actions Row */}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Salin / WhatsApp */}
+            {/* Kirim WhatsApp */}
             <button
               type="button"
               onClick={() => setShowWaInput(!showWaInput)}
@@ -690,10 +758,10 @@ export default function ReceiptModal({
               <span>{copied ? 'Tersalin!' : 'Salin'}</span>
             </button>
 
-            {/* Transaksi Baru */}
+            {/* Selesai / Transaksi Baru */}
             <button
               type="button"
-              onClick={onNewTransaction}
+              onClick={onNewTransaction || onClose}
               style={{
                 padding: '9px 14px',
                 borderRadius: '9px',

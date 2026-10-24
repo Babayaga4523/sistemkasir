@@ -4,12 +4,13 @@
  * 1. Cetak Thermal USB / Browser via isolated iframe (58mm & 80mm)
  * 2. Cetak Bluetooth Portable via Web Bluetooth API (ESC/POS)
  * 3. Format teks struk untuk WhatsApp
+ * 4. SVG Barcode generator untuk struk thermal
  */
 
 // Konstanta Lebar Kolom Monospace
 export const PAPER_WIDTHS = {
-  '58mm': { chars: 32, cssWidth: '48mm', label: '58mm (Standar Warkop/Mini)' },
-  '80mm': { chars: 42, cssWidth: '72mm', label: '80mm (Lebar/Resto)' }
+  '58mm': { chars: 32, printableWidth: '48mm', paperSize: '58mm', label: '58mm (Warkop / Standar)' },
+  '80mm': { chars: 42, printableWidth: '72mm', paperSize: '80mm', label: '80mm (Resto / Kafe Lebar)' }
 };
 
 // Ambil pengaturan printer dari LocalStorage
@@ -37,17 +38,46 @@ export function savePrinterSettings(settings) {
 }
 
 // Format Rupiah
-const formatIDR = (num) => `Rp ${Number(num || 0).toLocaleString('id-ID')}`;
+export const formatIDR = (num) => `Rp ${Number(num || 0).toLocaleString('id-ID')}`;
+
+/**
+ * Helper generator SVG Barcode thermal beresolusi tinggi (vektor 100% hitam)
+ */
+export function generateBarcodeSvg(orderNumber) {
+  const cleanStr = String(orderNumber || '1001').replace(/[^a-zA-Z0-9]/g, '');
+  const pattern = [2, 1, 1, 3, 1, 2, 3, 1, 1, 2, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 2, 2, 1, 1, 3, 2, 1, 2, 1, 3, 1, 2, 2];
+  
+  let x = 6;
+  const rects = [];
+  for (let i = 0; i < pattern.length; i++) {
+    const width = pattern[i];
+    const isBar = i % 2 === 0;
+    if (isBar) {
+      rects.push(`<rect x="${x}" y="0" width="${width * 1.8}" height="28" fill="#000" />`);
+    }
+    x += width * 1.8;
+  }
+
+  return `
+    <div style="text-align: center; margin: 6px 0 2px 0;">
+      <svg width="100%" height="26" viewBox="0 0 ${x + 6} 28" preserveAspectRatio="xMidYMid meet" style="display: block; margin: 0 auto; max-width: 180px;">
+        ${rects.join('')}
+      </svg>
+      <div style="font-size: 8.5px; letter-spacing: 2px; font-weight: 700; color: #222; margin-top: 2px;">
+        *#${cleanStr}*
+      </div>
+    </div>
+  `;
+}
 
 /**
  * Format baris teks dua kolom rata kiri dan kanan (misal: "Kopi Tubruk" dan "Rp 10.000")
  */
-function padLine(left, right, maxLen = 32) {
+export function padLine(left, right, maxLen = 32) {
   left = String(left || '');
   right = String(right || '');
   const spaceNeeded = maxLen - left.length - right.length;
   if (spaceNeeded <= 0) {
-    // Jika terlalu panjang, potong teks kiri
     const truncatedLeft = left.slice(0, Math.max(1, maxLen - right.length - 1)) + ' ';
     return truncatedLeft + right;
   }
@@ -66,7 +96,6 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
   const wifiSsid = store?.wifi_ssid;
   const wifiPass = store?.wifi_password;
 
-  const widthConfig = PAPER_WIDTHS[paperWidth] || PAPER_WIDTHS['58mm'];
   const is80 = paperWidth === '80mm';
 
   const dateFormatted = new Date(order.created_at || Date.now()).toLocaleDateString('id-ID', {
@@ -83,29 +112,29 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
 
   return `
     <div class="thermal-ticket">
-      <!-- Logo Toko -->
+      <!-- 1. Logo Toko (Jika Ada) -->
       ${cafeLogo ? `
         <div style="text-align: center; margin-bottom: 6px;">
-          <img src="${cafeLogo}" alt="${cafeName}" style="max-height: 48px; max-width: 140px; object-fit: contain;" />
+          <img src="${cafeLogo}" alt="${cafeName}" style="max-height: 48px; max-width: 140px; object-fit: contain; filter: grayscale(100%) contrast(150%);" />
         </div>
       ` : ''}
 
-      <!-- Header Struk -->
-      <div style="text-align: center; margin-bottom: 8px;">
-        <div style="font-size: ${is80 ? '16px' : '14px'}; font-weight: 900; letter-spacing: 0.3px; text-transform: uppercase;">
+      <!-- 2. Header Toko -->
+      <div style="text-align: center; margin-bottom: 6px;">
+        <div style="font-size: ${is80 ? '16px' : '14px'}; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.2;">
           ${cafeName}
         </div>
-        ${cafeAddress ? `<div style="font-size: 10px; margin-top: 2px;">${cafeAddress}</div>` : ''}
-        ${cafePhone ? `<div style="font-size: 10px;">Telp/WA: ${cafePhone}</div>` : ''}
+        ${cafeAddress ? `<div style="font-size: ${is80 ? '10px' : '9.5px'}; margin-top: 2px; color: #333; line-height: 1.3;">${cafeAddress}</div>` : ''}
+        ${cafePhone ? `<div style="font-size: ${is80 ? '10px' : '9.5px'}; color: #333;">Telp/WA: ${cafePhone}</div>` : ''}
       </div>
 
       <div class="dashed-line"></div>
 
-      <!-- Info Pesanan -->
-      <div class="info-block" style="font-size: 10.5px; line-height: 1.4;">
+      <!-- 3. Metadata Pesanan -->
+      <div class="info-block" style="font-size: ${is80 ? '10.5px' : '9.5px'}; line-height: 1.45;">
         <div style="display: flex; justify-content: space-between;">
           <span>No. Nota:</span>
-          <span style="font-weight: 700;">#${order.order_number || '-'}</span>
+          <span style="font-weight: 800;">#${order.order_number || '-'}</span>
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span>Tanggal:</span>
@@ -121,29 +150,44 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span>Layanan:</span>
-          <span style="font-weight: 700;">${order.order_type === 'dine_in' ? `Dine-In (Meja ${order.table_number || '-'})` : 'Takeaway / Bawa Pulang'}</span>
+          <span style="font-weight: 700;">${order.order_type === 'dine_in' ? `Dine-In (Meja ${order.table_number || '-'})` : 'Bawa Pulang / Takeaway'}</span>
         </div>
       </div>
 
       <div class="dashed-line"></div>
 
-      <!-- Tabel Item Menu -->
-      <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+      <!-- 4. Rincian Item Menu (Layout 2 Baris: Nama Menu lalu Qty x Harga & Subtotal) -->
+      <div style="display: flex; flex-direction: column; gap: 5px; font-size: ${is80 ? '11px' : '10px'};">
         ${(order.items || []).map(it => {
-          const variantText = it.selected_options && Object.keys(it.selected_options).length > 0 
-            ? ` (${Object.values(it.selected_options).join(', ')})` 
+          const variantList = it.selected_options && Object.keys(it.selected_options).length > 0 
+            ? Object.values(it.selected_options).join(', ')
             : '';
           const subtotalText = formatIDR(it.subtotal || it.price * it.quantity);
+          const unitPriceText = formatIDR(it.price);
+
           return `
-            <div style="margin-bottom: 2px;">
-              <div style="display: flex; justify-content: space-between; font-weight: 700;">
-                <span style="flex: 1; word-break: break-word; padding-right: 4px;">${it.product_name}</span>
-                <span style="white-space: nowrap;">${subtotalText}</span>
+            <div style="display: flex; flex-direction: column; gap: 1px;">
+              <!-- Baris 1: Nama Menu -->
+              <div style="font-weight: 700; color: #000; word-break: break-word; line-height: 1.25;">
+                ${it.product_name}
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: #444;">
-                <span>${it.quantity} x ${formatIDR(it.price)}${variantText}</span>
+              <!-- Baris 2: Qty x Harga Satuan (kiri) & Subtotal (kanan) -->
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${is80 ? '10px' : '9.5px'}; color: #222;">
+                <span style="padding-left: 6px;">${it.quantity} x ${unitPriceText}</span>
+                <span style="font-weight: 700; color: #000;">${subtotalText}</span>
               </div>
-              ${it.notes ? `<div style="font-size: 9px; font-style: italic; color: #555;">Catatan: ${it.notes}</div>` : ''}
+              <!-- Baris 3: Opsi Varian (jika ada) -->
+              ${variantList ? `
+                <div style="font-size: 8.5px; color: #555; padding-left: 6px; font-style: italic;">
+                  • [${variantList}]
+                </div>
+              ` : ''}
+              <!-- Baris 4: Catatan Pesanan (jika ada) -->
+              ${it.notes ? `
+                <div style="font-size: 8.5px; color: #444; padding-left: 6px; font-style: italic;">
+                  * Catatan: ${it.notes}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('')}
@@ -151,8 +195,8 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
 
       <div class="dashed-line"></div>
 
-      <!-- Rincian Biaya -->
-      <div style="display: flex; flex-direction: column; gap: 2px; font-size: 11px;">
+      <!-- 5. Rincian Biaya -->
+      <div style="display: flex; flex-direction: column; gap: 2.5px; font-size: ${is80 ? '10.5px' : '9.5px'};">
         <div style="display: flex; justify-content: space-between;">
           <span>Subtotal</span>
           <span>${formatIDR(order.subtotal)}</span>
@@ -175,38 +219,41 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
             <span>${formatIDR(order.service_charge)}</span>
           </div>
         ` : ''}
-
-        <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: ${is80 ? '14px' : '13px'}; padding-top: 4px; border-top: 1px solid #000; margin-top: 3px;">
-          <span>TOTAL</span>
-          <span>${formatIDR(order.total)}</span>
-        </div>
       </div>
 
-      <div class="dashed-line"></div>
+      <div class="double-line"></div>
 
-      <!-- Status Pembayaran -->
-      <div style="font-size: 10.5px; line-height: 1.4;">
+      <!-- 6. Total Pembayaran -->
+      <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: ${is80 ? '14px' : '13px'}; padding: 2px 0;">
+        <span>TOTAL</span>
+        <span>${formatIDR(order.total)}</span>
+      </div>
+
+      <div class="double-line"></div>
+
+      <!-- 7. Status & Pembayaran -->
+      <div style="font-size: ${is80 ? '10.5px' : '9.5px'}; line-height: 1.45;">
         ${isUnpaid ? `
-          <div style="text-align: center; font-weight: 900; font-size: 11px; padding: 3px 0; border: 1px solid #000; margin-bottom: 4px;">
-            *** BELUM LUNAS (OPEN BILL) ***
+          <div style="text-align: center; font-weight: 900; font-size: ${is80 ? '11px' : '10px'}; padding: 3px 0; border: 1.5px dashed #000; margin-bottom: 5px;">
+            *** TAGIHAN SEMENTARA (BELUM LUNAS) ***
           </div>
         ` : `
-          <div style="text-align: center; font-weight: 900; font-size: 11px; padding: 3px 0; border: 1px solid #000; margin-bottom: 4px;">
+          <div style="text-align: center; font-weight: 900; font-size: ${is80 ? '11px' : '10px'}; padding: 3px 0; border: 1.5px solid #000; margin-bottom: 5px;">
             *** LUNAS ***
           </div>
         `}
 
         <div style="display: flex; justify-content: space-between;">
           <span>Metode Bayar:</span>
-          <span style="font-weight: 700; text-transform: uppercase;">${isUnpaid ? 'OPEN BILL' : (order.payment_method || 'CASH')}</span>
+          <span style="font-weight: 800; text-transform: uppercase;">${isUnpaid ? 'OPEN BILL' : (order.payment_method || 'CASH')}</span>
         </div>
         ${!isUnpaid ? `
           <div style="display: flex; justify-content: space-between;">
-            <span>Nominal Bayar:</span>
+            <span>Nominal Diterima:</span>
             <span>${formatIDR(order.amount_paid || order.total)}</span>
           </div>
           ${order.change_amount > 0 ? `
-            <div style="display: flex; justify-content: space-between; font-weight: 700;">
+            <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: ${is80 ? '11px' : '10px'};">
               <span>Kembalian:</span>
               <span>${formatIDR(order.change_amount)}</span>
             </div>
@@ -214,25 +261,31 @@ export function buildThermalReceiptHtml({ order, store, paperWidth = '58mm', sho
         ` : ''}
       </div>
 
-      <!-- Info WiFi (Jika ada dan diaktifkan) -->
+      <!-- 8. Info WiFi Kafe -->
       ${(showWifi && (wifiSsid || wifiPass)) ? `
         <div class="dashed-line"></div>
-        <div style="text-align: center; font-size: 10px; line-height: 1.3;">
-          <div style="font-weight: 700;">📶 Fasilitas WiFi Warkop</div>
-          ${wifiSsid ? `<div>SSID: <strong>${wifiSsid}</strong></div>` : ''}
-          ${wifiPass ? `<div>Password: <strong>${wifiPass}</strong></div>` : ''}
+        <div style="border: 1px dashed #000; padding: 5px 8px; border-radius: 4px; text-align: center; margin: 4px 0;">
+          <div style="font-weight: 800; font-size: ${is80 ? '10px' : '9.5px'}; letter-spacing: 0.3px;">📶 FASILITAS WIFI KAFE</div>
+          ${wifiSsid ? `<div style="font-size: ${is80 ? '9.5px' : '9px'}; margin-top: 2px;">SSID: <strong>${wifiSsid}</strong></div>` : ''}
+          ${wifiPass ? `<div style="font-size: ${is80 ? '9.5px' : '9px'};">Password: <strong>${wifiPass}</strong></div>` : ''}
         </div>
       ` : ''}
 
+      <!-- 9. Barcode Struk -->
+      ${generateBarcodeSvg(order.order_number)}
+
       <div class="dashed-line"></div>
 
-      <!-- Ucapan Footer -->
-      <div style="text-align: center; font-size: 9.5px; line-height: 1.35; white-space: pre-line; margin-top: 4px;">
+      <!-- 10. Ucapan Footer Toko -->
+      <div style="text-align: center; font-size: ${is80 ? '9.5px' : '9px'}; line-height: 1.35; white-space: pre-line; margin-top: 4px; color: #222;">
         ${cafeFooter}
       </div>
-      <div style="text-align: center; font-size: 8px; color: #666; margin-top: 6px;">
-        Sistem Kasir Warkop POS
+      <div style="text-align: center; font-size: 8px; color: #666; margin-top: 5px;">
+        Warkop & Cafe POS • Sistem Kasir Modern
       </div>
+
+      <!-- Ruang aman agar kertas tidak terpotong pisau printer (paper cutter clearance) -->
+      <div style="height: 10mm; page-break-after: avoid;"></div>
     </div>
   `;
 }
@@ -280,7 +333,7 @@ export function printThermalIframe({ order, store, paperWidth = '58mm', showWifi
             <style>
               @page {
                 size: ${paperSize} auto;
-                margin: 0;
+                margin: 0mm;
               }
               *, *:before, *:after {
                 box-sizing: border-box;
@@ -290,18 +343,24 @@ export function printThermalIframe({ order, store, paperWidth = '58mm', showWifi
               body {
                 background: #ffffff !important;
                 color: #000000 !important;
-                font-family: 'Courier New', Courier, monospace, monospace;
+                font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace, sans-serif;
                 font-size: 11px;
                 line-height: 1.35;
-                padding: 4mm 3mm;
+                padding: 3mm 2mm 8mm 2mm;
                 width: ${printableWidth};
+                max-width: ${printableWidth};
                 margin: 0 auto;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
               }
               .dashed-line {
                 border-top: 1px dashed #000000;
-                margin: 6px 0;
+                margin: 5px 0;
+                width: 100%;
+              }
+              .double-line {
+                border-top: 1.5px solid #000000;
+                margin: 5px 0;
                 width: 100%;
               }
               @media screen {
@@ -346,46 +405,57 @@ export function printThermalIframe({ order, store, paperWidth = '58mm', showWifi
  * Format Teks WhatsApp Struk
  */
 export function formatWhatsAppReceipt({ order, store, showWifi = true }) {
-  const cafeName = store?.name || 'Warkop & Cafe';
+  const cafeName = store?.name || 'Warkop & Cafe POS';
   const cafeAddress = store?.address || '';
   const cafePhone = store?.phone || '';
-  const cafeFooter = store?.receipt_footer || 'Matur suwun sampun rawuh! Silakan berkunjung kembali ☕';
+  const cafeFooter = store?.receipt_footer || 'Matur suwun sampun rawuh!\nSilakan berkunjung kembali ☕';
   const wifiSsid = store?.wifi_ssid;
   const wifiPass = store?.wifi_password;
+
+  const dateFormatted = new Date(order.created_at || Date.now()).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+  const timeFormatted = new Date(order.created_at || Date.now()).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   const lines = [
     `☕ *${cafeName.toUpperCase()}*`,
     cafeAddress ? `${cafeAddress}` : null,
-    cafePhone ? `Telp: ${cafePhone}` : null,
-    `---------------------------------`,
-    `📋 No. Nota : *#${order.order_number}*`,
-    `📅 Waktu    : ${new Date(order.created_at || Date.now()).toLocaleString('id-ID')}`,
-    `👤 Kasir    : ${order.cashier_name || 'Kasir'}`,
-    `🙋 Pelanggan: *${order.customer_name || 'Pelanggan'}*`,
-    `📍 Layanan  : ${order.order_type === 'dine_in' ? `Meja ${order.table_number || '-'}` : 'Takeaway'}`,
-    `---------------------------------`,
-    `*PESANAN:*`,
+    cafePhone ? `Telp/WA: ${cafePhone}` : null,
+    `═════════════════════════`,
+    `📋 *No. Nota :* #${order.order_number}`,
+    `📅 *Waktu    :* ${dateFormatted} ${timeFormatted}`,
+    `👤 *Kasir    :* ${order.cashier_name || 'Kasir'}`,
+    `🙋 *Pelanggan:* ${order.customer_name || 'Pelanggan'}`,
+    `📍 *Layanan  :* ${order.order_type === 'dine_in' ? `Dine-In (Meja ${order.table_number || '-'})` : 'Takeaway'}`,
+    `═════════════════════════`,
+    `*RINCIAN PESANAN:*`,
     ...(order.items || []).map(it => {
       const variantText = it.selected_options && Object.keys(it.selected_options).length > 0 
-        ? ` (${Object.values(it.selected_options).join(', ')})` 
+        ? `\n   _[${Object.values(it.selected_options).join(', ')}]_` 
         : '';
       const notes = it.notes ? `\n   _Catatan: ${it.notes}_` : '';
-      return `• ${it.quantity}x ${it.product_name}${variantText}\n   = ${formatIDR(it.subtotal || it.price * it.quantity)}${notes}`;
+      return `• *${it.product_name}*\n   ${it.quantity} x ${formatIDR(it.price)} = *${formatIDR(it.subtotal || it.price * it.quantity)}*${variantText}${notes}`;
     }),
-    `---------------------------------`,
+    `═════════════════════════`,
     `Subtotal   : ${formatIDR(order.subtotal)}`,
     order.discount > 0 ? `Diskon     : -${formatIDR(order.discount)}` : null,
-    order.tax > 0 ? `Pajak      : ${formatIDR(order.tax)}` : null,
+    order.tax > 0 ? `Pajak (PB1): ${formatIDR(order.tax)}` : null,
     order.service_charge > 0 ? `Biaya Svc  : ${formatIDR(order.service_charge)}` : null,
+    `-------------------------`,
     `*TOTAL BAYAR: ${formatIDR(order.total)}*`,
-    `---------------------------------`,
+    `═════════════════════════`,
     (order.payment_method === 'unpaid' || order.payment_status === 'unpaid')
       ? `*STATUS    : BELUM LUNAS (OPEN BILL)*`
       : `*STATUS    : LUNAS (${(order.payment_method || 'CASH').toUpperCase()})*`,
     order.payment_method !== 'unpaid' ? `Diterima   : ${formatIDR(order.amount_paid || order.total)}` : null,
-    order.change_amount > 0 ? `Kembalian  : ${formatIDR(order.change_amount)}` : null,
-    (showWifi && (wifiSsid || wifiPass)) ? `---------------------------------\n📶 *Info WiFi:* ${wifiSsid || ''} (Pass: ${wifiPass || '-'})` : null,
-    `---------------------------------`,
+    order.change_amount > 0 ? `Kembalian  : *${formatIDR(order.change_amount)}*` : null,
+    (showWifi && (wifiSsid || wifiPass)) ? `═════════════════════════\n📶 *Fasilitas WiFi:* ${wifiSsid || '-'}\n🔑 *Password    :* ${wifiPass || '-'}` : null,
+    `═════════════════════════`,
     `${cafeFooter}`
   ].filter(Boolean).join('\n');
 
@@ -420,7 +490,6 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
       optionalServices: PRINTER_SERVICES
     });
   } catch (err) {
-    // Tangani jika kasir menekan tombol "Batal" atau menutup jendela pairing Bluetooth
     if (
       err.name === 'NotFoundError' || 
       err.name === 'AbortError' || 
@@ -437,7 +506,6 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
 
   const server = await device.gatt.connect();
 
-  // Cari service dan characteristic write yang tersedia
   let targetCharacteristic = null;
   for (const serviceUuid of PRINTER_SERVICES) {
     try {
@@ -451,11 +519,10 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
       }
       if (targetCharacteristic) break;
     } catch {
-      // Lanjutkan cek service berikutnya
+      // Cek service berikutnya
     }
   }
 
-  // Fallback: telusuri semua primary services yang di-expose perangkat
   if (!targetCharacteristic) {
     try {
       const services = await server.getPrimaryServices();
@@ -505,6 +572,10 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
     addLine('-'.repeat(maxChars));
   };
 
+  const addDoubleLine = () => {
+    addLine('='.repeat(maxChars));
+  };
+
   const addTwoColumnLine = (left, right) => {
     addLine(padLine(left, right, maxChars));
   };
@@ -512,7 +583,7 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
   const cafeName = store?.name || 'Warkop & Cafe POS';
   const cafeAddress = store?.address || '';
   const cafePhone = store?.phone || '';
-  const cafeFooter = store?.receipt_footer || 'Matur suwun sampun rawuh!\nSilakan berkunjung kembali';
+  const cafeFooter = store?.receipt_footer || 'Matur suwun sampun rawuh!\nSilakan berkunjung kembali ☕';
   const wifiSsid = store?.wifi_ssid;
   const wifiPass = store?.wifi_password;
 
@@ -527,7 +598,7 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
   addBytes(0x1D, 0x21, is80 ? 0x11 : 0x01);
   addLine(cafeName.toUpperCase());
 
-  // GS ! 0x00 (Normal size) & ESC E 0 (Bold OFF)
+  // Normal size & Bold OFF
   addBytes(0x1D, 0x21, 0x00);
   addBytes(0x1B, 0x45, 0x00);
 
@@ -547,7 +618,7 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
 
   addDashedLine();
 
-  // Items
+  // Items dengan 2 baris (Baris 1: Nama Menu, Baris 2: Qty x Harga & Subtotal)
   for (const it of (order.items || [])) {
     const variantText = it.selected_options && Object.keys(it.selected_options).length > 0 
       ? ` (${Object.values(it.selected_options).join(', ')})` 
@@ -556,10 +627,10 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
     const subtotalText = formatIDR(it.subtotal || it.price * it.quantity);
 
     addBytes(0x1B, 0x45, 0x01); // Bold item
-    addTwoColumnLine(itemTitle, subtotalText);
+    addLine(itemTitle);
     addBytes(0x1B, 0x45, 0x00); // Normal
 
-    addLine(`  ${it.quantity} x ${formatIDR(it.price)}`);
+    addTwoColumnLine(`  ${it.quantity} x ${formatIDR(it.price)}`, subtotalText);
     if (it.notes) {
       addLine(`  *Catatan: ${it.notes}`);
     }
@@ -573,6 +644,8 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
   if (order.tax > 0) addTwoColumnLine('Pajak (PB1)', formatIDR(order.tax));
   if (order.service_charge > 0) addTwoColumnLine('Biaya Layanan', formatIDR(order.service_charge));
 
+  addDoubleLine();
+
   // TOTAL BOLD
   addBytes(0x1B, 0x45, 0x01);
   addBytes(0x1D, 0x21, 0x01);
@@ -580,7 +653,7 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
   addBytes(0x1D, 0x21, 0x00);
   addBytes(0x1B, 0x45, 0x00);
 
-  addDashedLine();
+  addDoubleLine();
 
   // Payment Status
   const isUnpaid = order.payment_method === 'unpaid' || order.payment_status === 'unpaid';
@@ -592,7 +665,7 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
 
   addTwoColumnLine('Metode Bayar:', isUnpaid ? 'OPEN BILL' : (order.payment_method || 'CASH').toUpperCase());
   if (!isUnpaid) {
-    addTwoColumnLine('Nominal Bayar:', formatIDR(order.amount_paid || order.total));
+    addTwoColumnLine('Nominal Diterima:', formatIDR(order.amount_paid || order.total));
     if (order.change_amount > 0) {
       addTwoColumnLine('Kembalian:', formatIDR(order.change_amount));
     }
@@ -631,7 +704,6 @@ export async function printBluetoothThermal({ order, store, paperWidth = '58mm',
     } else {
       await targetCharacteristic.writeValue(chunk);
     }
-    // Delay kecil antar chunk agar buffer printer tidak meluap
     await new Promise(r => setTimeout(r, 20));
   }
 

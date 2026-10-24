@@ -234,16 +234,36 @@ select option {
   #thermal-receipt {
     display: block !important;
     width: 100% !important;
-    max-width: 58mm !important;
     margin: 0 auto !important;
-    padding: 2mm 3mm !important;
+    padding: 2mm 3mm 8mm 3mm !important;
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
     color: #000000 !important;
-    font-family: 'Courier New', Courier, monospace !important;
+    font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace, sans-serif !important;
     font-size: 11px !important;
     line-height: 1.35 !important;
+    clip-path: none !important; /* Hilangkan gerigi potong saat cetak fisik */
+  }
+
+  #thermal-receipt.receipt-58mm {
+    max-width: 48mm !important;
+  }
+
+  #thermal-receipt.receipt-80mm {
+    max-width: 72mm !important;
+  }
+
+  .dashed-line {
+    border-top: 1px dashed #000000 !important;
+    margin: 5px 0 !important;
+    width: 100% !important;
+  }
+
+  .double-line {
+    border-top: 1.5px solid #000000 !important;
+    margin: 5px 0 !important;
+    width: 100% !important;
   }
 
   .print-only {
@@ -254,11 +274,191 @@ select option {
     width: 58mm;
     margin: 0;
     padding: 3mm;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', 'Courier New', monospace, sans-serif;
     font-size: 11px;
     line-height: 1.35;
     background: white !important;
     color: black !important;
   }
 }
+
+/* ========================================================
+   MOBILE & ANDROID RESPONSIVENESS SYSTEM
+   ======================================================== */
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --mobile-nav-height: 62px;
+}
+
+/* Instant tap responsiveness on Android / mobile */
+button, input, select, textarea, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  /* Prevent browser auto-zoom on input focus in Android / iOS */
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="email"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 14px;
+  }
+
+  .hide-on-mobile {
+    display: none !important;
+  }
+  .show-on-mobile {
+    display: flex !important;
+  }
+  .show-on-mobile-block {
+    display: block !important;
+  }
+
+  /* Safe container padding for mobile with fixed bottom nav */
+  .mobile-page-content {
+    padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom) + 16px) !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .show-on-mobile,
+  .show-on-mobile-block {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .hide-on-tablet {
+    display: none !important;
+  }
+  .show-on-tablet {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .show-on-tablet {
+    display: none !important;
+  }
+}
+
+/* Mobile Slide-up Drawer Animation */
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up-sheet {
+  animation: slideUpSheet 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Mobile Bottom Navigation Bar (Modern Android Glassmorphic) */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: calc(var(--mobile-nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: rgba(16, 13, 11, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 65;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.7);
+  user-select: none;
+}
+
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 6px 0 4px 0;
+  position: relative;
+  transition: all 0.18s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.mobile-nav-item.active {
+  color: #fff;
+}
+
+.mobile-nav-item.active span {
+  color: var(--accent-primary);
+  font-weight: 800;
+}
+
+.mobile-nav-item.active svg {
+  color: var(--accent-primary);
+  transform: translateY(-2px);
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.4));
+}
+
+.mobile-nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1.2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Drawer drag handle for bottom sheets */
+.bottom-sheet-drag-handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 10px auto 4px auto;
+  flex-shrink: 0;
+}
+
+/* Touch friendly horizontal scroll */
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.touch-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Responsive Table Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+
 

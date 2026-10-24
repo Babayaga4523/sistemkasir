@@ -95,6 +95,10 @@ export function AuthProvider({ children }) {
       
       if (sessionError) {
         console.warn('Sesi Supabase kadaluarsa atau error:', sessionError.message);
+        clearAuthTokens();
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (_) {}
         setUser(null);
         setStore(null);
         setIsDemoMode(false);
@@ -114,12 +118,13 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.warn('Gagal membaca sesi Supabase:', err);
+      clearAuthTokens();
       setUser(null);
       setStore(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearAuthTokens]);
 
   // Pasang listener perubahan status autentikasi Supabase realtime
   useEffect(() => {
@@ -137,8 +142,10 @@ export function AuthProvider({ children }) {
         setIsDemoMode(false);
         const storeData = await getStoreByUserId(session.user.id);
         setStore(storeData);
-      } else if (event === 'SIGNED_OUT') {
-        clearLocalTenantData();
+      } else if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
+        if (event === 'SIGNED_OUT') {
+          clearLocalTenantData();
+        }
         clearAuthTokens();
         setUser(null);
         setStore(null);

@@ -42,9 +42,15 @@ import {
   EyeOff,
   LogOut,
   KeyRound,
-  User
+  User,
+  Tag,
+  Plus,
+  Trash2,
+  Edit3,
+  X
 } from 'lucide-react';
 import { printThermalIframe, getPrinterSettings, savePrinterSettings } from '../../utils/printer';
+import { DEFAULT_DISCOUNTS } from '../../lib/defaultData';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -94,6 +100,16 @@ export default function SettingsPage() {
   const [defaultPaperWidth, setDefaultPaperWidth] = useState('58mm');
   const [showWifiOnReceipt, setShowWifiOnReceipt] = useState(true);
   const [testingPrint, setTestingPrint] = useState(false);
+
+  // Diskon / Promo Management
+  const [discounts, setDiscounts] = useState(DEFAULT_DISCOUNTS);
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [editingDiscountId, setEditingDiscountId] = useState(null);
+  const [discFormName, setDiscFormName] = useState('');
+  const [discFormType, setDiscFormType] = useState('percentage'); // 'percentage' | 'fixed'
+  const [discFormValue, setDiscFormValue] = useState(10);
+  const [discFormMinOrder, setDiscFormMinOrder] = useState(0);
+  const [discFormActive, setDiscFormActive] = useState(true);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -155,6 +171,15 @@ export default function SettingsPage() {
       setBankAccountName(store.bank_account_name || '');
       setQrisDynamicEnabled(store.qris_dynamic_enabled !== false);
       setQrisPayload(store.qris_payload || '');
+
+      // Load discounts
+      if (store.discounts && Array.isArray(store.discounts) && store.discounts.length > 0) {
+        setDiscounts(store.discounts);
+      } else if (store.payment_methods?.discounts && Array.isArray(store.payment_methods.discounts) && store.payment_methods.discounts.length > 0) {
+        setDiscounts(store.payment_methods.discounts);
+      } else {
+        setDiscounts(DEFAULT_DISCOUNTS);
+      }
 
       // Load printer settings from local storage
       const pSettings = getPrinterSettings();
@@ -231,7 +256,8 @@ export default function SettingsPage() {
         bank_account_number: bankAccountNumber.trim(),
         bank_account_name: bankAccountName.trim(),
         qris_dynamic_enabled: qrisDynamicEnabled,
-        qris_payload: qrisPayload.trim()
+        qris_payload: qrisPayload.trim(),
+        discounts: discounts
       });
 
       // Simpan preferensi printer ke LocalStorage
@@ -297,6 +323,96 @@ export default function SettingsPage() {
     }
   };
 
+  // Handler manajemen diskon
+  const handleOpenAddDiscount = () => {
+    setEditingDiscountId(null);
+    setDiscFormName('');
+    setDiscFormType('percentage');
+    setDiscFormValue(10);
+    setDiscFormMinOrder(0);
+    setDiscFormActive(true);
+    setIsDiscountModalOpen(true);
+  };
+
+  const handleOpenEditDiscount = (d) => {
+    setEditingDiscountId(d.id);
+    setDiscFormName(d.name || '');
+    setDiscFormType(d.type || 'percentage');
+    setDiscFormValue(d.value || 10);
+    setDiscFormMinOrder(d.min_order || 0);
+    setDiscFormActive(d.is_active !== false);
+    setIsDiscountModalOpen(true);
+  };
+
+  const handleSaveDiscountItem = (e) => {
+    e?.preventDefault();
+    if (!discFormName.trim()) {
+      addToast('Nama promo / diskon wajib diisi!', 'warning');
+      return;
+    }
+    const numVal = Number(discFormValue);
+    if (isNaN(numVal) || numVal <= 0) {
+      addToast('Besar potongan harus berupa angka lebih dari 0!', 'warning');
+      return;
+    }
+    if (discFormType === 'percentage' && numVal > 100) {
+      addToast('Persentase diskon tidak boleh melebihi 100%!', 'warning');
+      return;
+    }
+
+    if (editingDiscountId) {
+      setDiscounts(prev => prev.map(d => {
+        if (d.id === editingDiscountId) {
+          return {
+            ...d,
+            name: discFormName.trim(),
+            type: discFormType,
+            value: numVal,
+            min_order: Number(discFormMinOrder) || 0,
+            is_active: discFormActive
+          };
+        }
+        return d;
+      }));
+      addToast(`Diskon "${discFormName.trim()}" berhasil diperbarui!`, 'success');
+    } else {
+      const newDisc = {
+        id: `disc-${Date.now()}`,
+        name: discFormName.trim(),
+        type: discFormType,
+        value: numVal,
+        min_order: Number(discFormMinOrder) || 0,
+        is_active: discFormActive
+      };
+      setDiscounts(prev => [...prev, newDisc]);
+      addToast(`Diskon "${discFormName.trim()}" berhasil ditambahkan!`, 'success');
+    }
+
+    setIsDiscountModalOpen(false);
+  };
+
+  const handleDeleteDiscount = (id) => {
+    const target = discounts.find(d => d.id === id);
+    if (!confirm(`Hapus promo "${target?.name || 'diskon'}"?`)) return;
+    setDiscounts(prev => prev.filter(d => d.id !== id));
+    addToast('Promo diskon berhasil dihapus.', 'info');
+  };
+
+  const handleToggleDiscountActive = (id) => {
+    setDiscounts(prev => prev.map(d => {
+      if (d.id === id) {
+        const nextState = d.is_active === false ? true : false;
+        return { ...d, is_active: nextState };
+      }
+      return d;
+    }));
+  };
+
+  const handleResetDefaultDiscounts = () => {
+    setDiscounts(DEFAULT_DISCOUNTS);
+    addToast('Preset diskon standar berhasil dimuat!', 'info');
+  };
+
   // Ubah kata sandi pengguna
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
@@ -352,13 +468,43 @@ export default function SettingsPage() {
         overflowY: 'auto',
         overflowX: 'hidden'
       }}>
-        <main style={{
-          padding: '24px 32px 100px 32px',
-          maxWidth: '1000px',
-          margin: '0 auto',
-          width: '100%',
-          boxSizing: 'border-box'
-        }}>
+        <style>{`
+          .settings-container {
+            padding: 24px 32px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 36px) 32px;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .settings-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 22px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+          }
+          @media (max-width: 768px) {
+            .settings-container {
+              padding: 14px 12px calc(var(--mobile-nav-height, 62px) + var(--safe-bottom, 0px) + 36px) 12px !important;
+            }
+            .settings-card {
+              padding: 16px 12px !important;
+              border-radius: 14px !important;
+            }
+            .settings-header-actions {
+              width: 100% !important;
+              display: flex !important;
+              justify-content: stretch !important;
+            }
+            .settings-header-actions button {
+              width: 100% !important;
+              justify-content: center !important;
+            }
+          }
+        `}</style>
+        <main className="settings-container">
         {/* Title */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
@@ -371,45 +517,39 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '11px 22px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, var(--accent-emerald) 0%, var(--accent-emerald-hover) 100%)',
-              color: '#fff',
-              fontSize: '13px',
-              fontWeight: 800,
-              boxShadow: '0 4px 15px var(--accent-emerald-glow)',
-              opacity: saving ? 0.7 : 1
-            }}
-          >
-            <Save size={16} />
-            <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
-          </button>
+          <div className="settings-header-actions">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '11px 22px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, var(--accent-emerald) 0%, var(--accent-emerald-hover) 100%)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: 800,
+                boxShadow: '0 4px 15px var(--accent-emerald-glow)',
+                opacity: saving ? 0.7 : 1
+              }}
+            >
+              <Save size={16} />
+              <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Card 1: Identitas Kafe */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
               🏪 Identitas & Branding Kafe
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px' }}>
               {/* Nama Kafe */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
@@ -527,15 +667,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Card: Pengaturan Printer Thermal & Struk Kasir */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -570,7 +702,7 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px' }}>
               {/* Ukuran Kertas Default */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
@@ -672,20 +804,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Card 2: Parameter Transaksi & Pajak */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
               💰 Parameter Transaksi & Pajak
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '18px' }}>
               {/* Pajak PB1 */}
               <div style={{
                 padding: '14px 16px',
@@ -852,18 +976,202 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Card: Manajemen Diskon & Promo Kafe */}
+          <div className="settings-card">
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid var(--border-subtle)',
+              paddingBottom: '12px',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Tag size={17} color="var(--accent-primary)" />
+                  <span>🏷️ Manajemen Diskon & Promo Kafe</span>
+                </h2>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Atur preset diskon promo persentase (%) atau nominal rupiah (Rp) yang dapat dipilih langsung oleh kasir.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddDiscount}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  borderRadius: '9px',
+                  background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%)',
+                  color: '#000',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)'
+                }}
+              >
+                <Plus size={14} />
+                <span>+ Tambah Diskon Baru</span>
+              </button>
+            </div>
+
+            {/* Daftar Preset Diskon */}
+            {discounts.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '36px 16px',
+                background: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '12px',
+                border: '1px dashed var(--border-subtle)'
+              }}>
+                <Tag size={28} color="var(--text-muted)" style={{ margin: '0 auto 8px auto', opacity: 0.6 }} />
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>Belum Ada Diskon Promo</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '340px', margin: '4px auto 14px auto' }}>
+                  Buat preset diskon untuk memudahkan kasir memberikan potongan harga ke member, karyawan, atau promo hari khusus.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetDefaultDiscounts}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    color: 'var(--accent-primary)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Muat Template Diskon Standar
+                </button>
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: '12px'
+              }}>
+                {discounts.map(d => {
+                  const isPercent = d.type === 'percentage';
+                  const formattedValue = isPercent ? `${d.value}%` : `Rp ${Number(d.value || 0).toLocaleString('id-ID')}`;
+                  const minOrderText = d.min_order > 0 ? `Min. Belanja: Rp ${Number(d.min_order).toLocaleString('id-ID')}` : 'Tanpa minimal belanja';
+
+                  return (
+                    <div
+                      key={d.id}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        background: d.is_active !== false ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                        border: d.is_active !== false ? '1px solid var(--border-subtle)' : '1px dashed rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        opacity: d.is_active !== false ? 1 : 0.6,
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#fff', wordBreak: 'break-word' }}>
+                            {d.name}
+                          </span>
+
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: isPercent ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                            color: isPercent ? 'var(--accent-primary)' : '#34d399',
+                            border: isPercent ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {formattedValue}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>{minOrderText}</span>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingTop: '8px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)'
+                      }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px' }}>
+                          <input
+                            type="checkbox"
+                            checked={d.is_active !== false}
+                            onChange={() => handleToggleDiscountActive(d.id)}
+                            style={{ accentColor: 'var(--accent-emerald)', width: '14px', height: '14px', cursor: 'pointer' }}
+                          />
+                          <span style={{ color: d.is_active !== false ? 'var(--accent-emerald)' : 'var(--text-faint)', fontWeight: 600 }}>
+                            {d.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                          </span>
+                        </label>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditDiscount(d)}
+                            title="Edit Diskon"
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(255, 255, 255, 0.06)',
+                              border: '1px solid var(--border-subtle)',
+                              color: '#fff',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Edit3 size={12} />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDiscount(d.id)}
+                            title="Hapus Diskon"
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(239, 68, 68, 0.12)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#f87171',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Card 2.5: Konfigurasi QRIS Dinamis Otomatis */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
+          <div className="settings-card" style={{ position: 'relative', overflow: 'hidden' }}>
             <div style={{
               position: 'absolute',
               top: 0,
@@ -1013,7 +1321,7 @@ export default function SettingsPage() {
                   )}
 
                   {/* Input and Live Preview Layout */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '18px', alignItems: 'start' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '18px', alignItems: 'start' }}>
                     {/* Left: Input Textarea */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
@@ -1222,20 +1530,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Card 3: Operasional & Fasilitas Kafe */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>📶 Fasilitas & Jam Operasional Warkop</span>
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '18px' }}>
               {/* Jam Operasional */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
@@ -1356,15 +1656,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Card 4: Biaya Kemasan & Rekening Kasir */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
               🥡 Biaya Kemasan & Rekening Pembayaran Transfer
             </h2>
@@ -1437,7 +1729,7 @@ export default function SettingsPage() {
                 Informasi Rekening Kasir (Untuk Pelanggan Bayar via Transfer / QRIS Manual):
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px' }}>
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Nama Bank / E-Wallet</span>
                   <input
@@ -1499,15 +1791,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Card: Akun Pengguna & Keamanan Sandi */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '22px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px'
-          }}>
+          <div className="settings-card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <KeyRound size={17} color="var(--accent-primary)" />
@@ -1539,7 +1823,7 @@ export default function SettingsPage() {
             {/* Account Info Details */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
               gap: '12px',
               padding: '12px 14px',
               borderRadius: '12px',
@@ -1678,16 +1962,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Card 5: Multi-Tenant Isolation Status */}
-          <div style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '20px 24px',
-            display: 'flex',
+          <div className="settings-card" style={{
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '16px',
-            flexWrap: 'wrap'
+            flexWrap: 'wrap',
+            flexDirection: 'row'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
@@ -1734,6 +2014,255 @@ export default function SettingsPage() {
         </form>
       </main>
       </div>
+
+      {/* Modal Tambah/Edit Diskon */}
+      {isDiscountModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 150,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div 
+            className="animate-scale-up"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(23, 20, 18, 0.95)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Tag size={16} color="var(--accent-primary)" />
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>
+                  {editingDiscountId ? 'Edit Diskon Promo' : 'Tambah Diskon Promo Baru'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDiscountModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Nama Promo */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '5px' }}>
+                  Nama Diskon / Promo <span style={{ color: 'var(--accent-rose)' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Member VIP 10%, Jumat Berkah"
+                  value={discFormName}
+                  onChange={(e) => setDiscFormName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '9px',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#fff',
+                    fontSize: '13px'
+                  }}
+                />
+              </div>
+
+              {/* Tipe Diskon (Persentase vs Nominal) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                  Tipe Potongan Harga <span style={{ color: 'var(--accent-rose)' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setDiscFormType('percentage')}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: discFormType === 'percentage' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                      background: discFormType === 'percentage' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: discFormType === 'percentage' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Percent size={13} />
+                    <span>Persentase (%)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscFormType('fixed')}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: discFormType === 'fixed' ? '1px solid var(--accent-emerald)' : '1px solid var(--border-subtle)',
+                      background: discFormType === 'fixed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: discFormType === 'fixed' ? '#34d399' : 'var(--text-muted)',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Banknote size={13} />
+                    <span>Nominal Tetap (Rp)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Nilai Diskon */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '5px' }}>
+                  {discFormType === 'percentage' ? 'Besar Persentase Diskon (%)' : 'Besar Potongan (Rp)'} <span style={{ color: 'var(--accent-rose)' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max={discFormType === 'percentage' ? 100 : 10000000}
+                    placeholder={discFormType === 'percentage' ? '10' : '5000'}
+                    value={discFormValue}
+                    onChange={(e) => setDiscFormValue(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '9px',
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid var(--border-subtle)',
+                      color: '#fff',
+                      fontSize: '13px'
+                    }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--text-muted)'
+                  }}>
+                    {discFormType === 'percentage' ? '%' : 'Rupiah'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Minimal Pembelian */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '5px' }}>
+                  Minimal Belanja (Isi 0 jika tanpa syarat)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  placeholder="0"
+                  value={discFormMinOrder}
+                  onChange={(e) => setDiscFormMinOrder(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '9px',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#fff',
+                    fontSize: '13px'
+                  }}
+                />
+              </div>
+
+              {/* Status Aktif */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '4px' }}>
+                <input
+                  type="checkbox"
+                  checked={discFormActive}
+                  onChange={(e) => setDiscFormActive(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-emerald)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '12px', color: '#fff', fontWeight: 600 }}>
+                  Aktifkan diskon ini agar muncul di pilihan kasir
+                </span>
+              </label>
+            </div>
+
+            <div style={{
+              padding: '12px 18px',
+              borderTop: '1px solid var(--border-subtle)',
+              background: 'rgba(15, 12, 10, 0.95)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsDiscountModalOpen(false)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-muted)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDiscountItem}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, var(--accent-emerald) 0%, var(--accent-emerald-hover) 100%)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px var(--accent-emerald-glow)'
+                }}
+              >
+                Simpan Diskon
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast toasts={toasts} onDismiss={(id) => setToasts(t => t.filter(x => x.id !== id))} />
     </div>

@@ -78,8 +78,15 @@ export default function CustomizationModal({ product, isOpen, onClose, onAddToCa
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '16px'
+      padding: '12px'
     }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .custom-modal-pad-header { padding: 14px 16px !important; }
+          .custom-modal-pad-body { padding: 16px 14px !important; }
+          .custom-modal-pad-footer { padding: 12px 14px !important; }
+        }
+      `}</style>
       <div 
         className="animate-scale-up"
         style={{
@@ -96,7 +103,7 @@ export default function CustomizationModal({ product, isOpen, onClose, onAddToCa
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="custom-modal-pad-header" style={{
           padding: '20px 24px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
@@ -151,7 +158,7 @@ export default function CustomizationModal({ product, isOpen, onClose, onAddToCa
         </div>
 
         {/* Scrollable Options Body */}
-        <div style={{
+        <div className="custom-modal-pad-body" style={{
           padding: '24px',
           overflowY: 'auto',
           display: 'flex',
@@ -253,7 +260,7 @@ export default function CustomizationModal({ product, isOpen, onClose, onAddToCa
         </div>
 
         {/* Footer with Quantity & Add Button */}
-        <div style={{
+        <div className="custom-modal-pad-footer" style={{
           padding: '18px 24px',
           borderTop: '1px solid var(--border-subtle)',
           background: 'rgba(15, 12, 10, 0.7)',
