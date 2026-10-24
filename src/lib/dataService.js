@@ -123,6 +123,36 @@ export async function createStore(storeData, userId) {
     payment_methods: storeData.payment_methods || { cash: true, qris: true, transfer: true }
   };
 
+  // 1. Coba buat via Server API Route (memakai Supabase Service Role - aman dari RLS 42501 & 401)
+  if (typeof window !== 'undefined' && userId) {
+    try {
+      const res = await fetch('/api/store/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeData, userId })
+      });
+      if (res.ok) {
+        const resJson = await res.json();
+        if (resJson?.store) {
+          const createdStore = resJson.store;
+          localStorage.setItem(STORAGE_KEYS.STORE, JSON.stringify(createdStore));
+
+          if (createdStore.id && storeData.seedDefaultMenu) {
+            try {
+              await seedStoreDefaultMenu(createdStore.id);
+            } catch (e) {
+              console.warn('Gagal auto-seed menu awal store:', e);
+            }
+          }
+          return createdStore;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('API route /api/store/create gagal, beralih ke client-side:', apiErr);
+    }
+  }
+
+  // 2. Fallback Client-side Supabase Upsert
   if (supabase && userId) {
     const { data, error } = await supabase
       .from('stores')
@@ -144,6 +174,9 @@ export async function createStore(storeData, userId) {
       }
     }
 
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.STORE, JSON.stringify(data));
+    }
     return data;
   }
 

@@ -14,11 +14,10 @@ export function AuthProvider({ children }) {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
-  // Bersihkan semua cache tenant lokal & token Supabase agar tidak ada data akun yang tertinggal
-  const clearLocalTenantCache = useCallback(() => {
+  // 1. Bersihkan semua cache tenant lokal warkop (keranjang kasir, cache lokal produk)
+  const clearLocalTenantData = useCallback(() => {
     if (typeof window === 'undefined') return;
 
-    // 1. Hapus key data tenant warkop
     const keysToRemove = [
       'warkop_demo_mode',
       'warkop_store_profile',
@@ -38,8 +37,11 @@ export function AuthProvider({ children }) {
         console.warn(`Gagal hapus ${k}:`, e);
       }
     });
+  }, []);
 
-    // 2. Hapus semua token autentikasi Supabase dari localStorage agar getSession tidak re-login otomatis
+  // 2. Bersihkan token autentikasi Supabase (HANYA dieksekusi saat LOGOUT / SIGN OUT!)
+  const clearAuthTokens = useCallback(() => {
+    if (typeof window === 'undefined') return;
     try {
       const storageKeys = Object.keys(localStorage);
       for (const k of storageKeys) {
@@ -136,7 +138,8 @@ export function AuthProvider({ children }) {
         const storeData = await getStoreByUserId(session.user.id);
         setStore(storeData);
       } else if (event === 'SIGNED_OUT') {
-        clearLocalTenantCache();
+        clearLocalTenantData();
+        clearAuthTokens();
         setUser(null);
         setStore(null);
         setIsDemoMode(false);
@@ -148,7 +151,7 @@ export function AuthProvider({ children }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [refreshAuth, clearLocalTenantCache]);
+  }, [refreshAuth, clearLocalTenantData, clearAuthTokens]);
 
   // ==========================================
   // SIGN IN LOGIC (LOGIN)
@@ -179,7 +182,7 @@ export function AuthProvider({ children }) {
       throw new Error(formatAuthError(error));
     }
 
-    clearLocalTenantCache();
+    clearLocalTenantData();
     setIsDemoMode(false);
     setUser(data.user);
 
@@ -271,7 +274,7 @@ export function AuthProvider({ children }) {
         throw new Error('Alamat email ini sudah terdaftar. Silakan masuk menggunakan tab Masuk Kasir.');
       }
 
-      clearLocalTenantCache();
+      clearLocalTenantData();
       setIsDemoMode(false);
 
       const needsEmailConfirmation = !data.session;
@@ -385,7 +388,8 @@ export function AuthProvider({ children }) {
     }
 
     // 2. Bersihkan seluruh token & cache tenant di browser
-    clearLocalTenantCache();
+    clearLocalTenantData();
+    clearAuthTokens();
     setIsDemoMode(false);
     setIsPasswordRecovery(false);
     setUser(null);

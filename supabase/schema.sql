@@ -133,7 +133,8 @@ CREATE POLICY "Users can create own store" ON stores
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own store" ON stores
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own store" ON stores
   FOR DELETE USING (auth.uid() = user_id);
